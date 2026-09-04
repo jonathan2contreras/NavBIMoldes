@@ -485,6 +485,11 @@ async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
 @api_router.delete("/molds/{name}")
 async def delete_mold(name: str, _admin=Depends(require_admin)):
     await db.molds.delete_one({"name": name})
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tags.update_many(
+        {"molde": name},
+        {"$set": {"molde": None, "updated_at": now}},
+    )
     return {"deleted": True, "name": name}
 
 

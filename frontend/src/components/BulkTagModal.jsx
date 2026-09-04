@@ -24,6 +24,12 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const handlePhotoPick = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;

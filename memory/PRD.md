@@ -44,12 +44,11 @@
 - [x] (4 sep 2026) **PIVOT — Sistema de moldes (reemplaza estados)**: por pedido explícito del usuario, se eliminó el sistema de estados (Fabricado/Enviado/Instalado/Entregable/Observaciones) y el dashboard "Progreso". Nuevo modelo: catálogo reutilizable de **Moldes** (`molds`: nombre, tipo [curvo/liso/borde_losa/cubre_viga], color para el visor 3D) — `GET/POST /api/molds`, `DELETE /api/molds/{name}`. Cada pieza (`tags`) ahora guarda: molde (ref), ancho/alto (medidas manuales), color (pintura, texto libre), foto, notas, historial de cambios. `PUT /api/tags` reescrito; nuevo `PUT /api/tags/bulk` (etiquetado masivo) y `DELETE /api/tags` (borrar etiqueta completa). Migración de arranque: borra tags legado con campo `status`. Frontend: `MoldPicker.jsx` (selector + alta rápida de molde), `BulkTagModal.jsx`, `TagSheet.jsx` reescrito (molde/medidas/color/notas/foto/historial + borrar etiqueta), `ObjectsPage.jsx` con filtro por molde + modo selección múltiple (admin), `PhotosPage.jsx`/`PanelFullscreen.jsx` con badge de molde. Visor 3D (`viewer.html` + `ViewerPage.jsx`): leyenda y aislamiento por molde con su color asignado (antes por estado). Se quitó la pestaña "Progreso" del nav; nueva pestaña **Reportes** (`ReportsPage.jsx`) con tabla de paneles + molde por fachada, resumen de conteos por molde y export PDF/Excel (`GET /api/report/molds`, `GET /api/report/molds/export`). Logout se movió a la barra superior (`AppLayout.jsx`). Testeado iteration_7 (backend 21/21 pytest + frontend 100% de los flujos, incluye creación de molde nuevo, etiquetado masivo, filtro por molde, roles admin/viewer, export PDF/Excel).
 - [x] (4 sep 2026) Login sin logos + logos verticales equidistantes en la pantalla de carga del modelo 3D (tarjetas iguales con borde para contraste). Aprobado por el usuario.
 
+- [x] (4 sep 2026) **Fixes post-testing**: (1) `DELETE /api/molds/{name}` ahora limpia en cascada `tags.molde` de las piezas que lo tenían asignado (verificado con curl). (2) `BulkTagModal` se cierra con tecla Escape además del botón X. (3) Interceptor 401 en `api.js`: cualquier respuesta 401 limpia `bim_token`/`bim_role` y redirige a `/login` automáticamente (sesión de admin caducada a los 30 días).
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
-- P2: interceptor 401 en frontend → limpiar `bim_token` y redirigir a /login cuando el JWT de 30 días caduque (hoy daría 401 silenciosos).
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.
-- P2: al borrar un molde del catálogo (`DELETE /api/molds/{name}`), no se limpia la referencia en `tags.molde` de piezas ya etiquetadas (quedan como "Sin molde" al mostrarse, pero el nombre huérfano permanece guardado). Considerar unset en cascada.
-- P2: cerrar `BulkTagModal` con tecla Escape (hoy solo botón X).
 - P2: multiusuario / exportar CSV.
 
 ## Notas técnicas

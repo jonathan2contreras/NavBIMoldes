@@ -8,11 +8,21 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const handleUnauthorized = () => {
+  localStorage.removeItem("bim_role");
+  localStorage.removeItem("bim_token");
+  if (window.location.pathname !== "/login") window.location.assign("/login");
+};
+
 async function req(path, opts = {}) {
   const r = await fetch(`${BASE}/api${path}`, {
     ...opts,
     headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
   });
+  if (r.status === 401) {
+    handleUnauthorized();
+    throw new Error("HTTP 401");
+  }
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
@@ -24,6 +34,10 @@ export const api = {
     const fd = new FormData();
     fd.append("file", file);
     const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd, headers: authHeaders() });
+    if (r.status === 401) {
+      handleUnauthorized();
+      throw new Error("HTTP 401");
+    }
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
