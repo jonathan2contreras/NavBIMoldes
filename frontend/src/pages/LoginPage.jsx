@@ -54,9 +54,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex-1" />
-
-        <div className="flex flex-col gap-3 pb-10">
+        <div className="flex flex-col gap-3 pt-10">
           {!askPassword ? (
             <>
               <p className="mb-1 text-xs font-bold tracking-widest text-[#8E8E93]">¿CÓMO QUIERES ENTRAR?</p>
