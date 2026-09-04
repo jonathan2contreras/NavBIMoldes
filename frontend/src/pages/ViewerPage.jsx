@@ -4,7 +4,7 @@ import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
-import { NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
+import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 
 const ISO_FILTERS = [
   { key: "all", label: "Todas" },
@@ -196,14 +196,33 @@ export default function ViewerPage() {
       )}
 
       {loading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white px-8" data-testid="viewer-loading">
-          <Loader2 size={36} className="animate-spin text-[#1C1C1E]" />
-          <p className="mt-4 text-base font-bold text-[#111111]">Cargando modelo BIM...</p>
-          <p className="mt-1 text-[13px] text-[#8E8E93]">{progress > 0 ? `${progress}%` : "Conectando..."}</p>
-          <div className="mt-4 h-1.5 w-4/5 max-w-md overflow-hidden rounded-full bg-[#E5E5EA]">
-            <div className="h-full rounded-full bg-[#1C1C1E] transition-all" style={{ width: `${progress}%` }} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 bg-white px-8 py-10" data-testid="viewer-loading">
+          <div className="flex flex-col items-center justify-center gap-6" data-testid="viewer-loading-logos">
+            {LOGOS.map((l) => (
+              <div
+                key={l.key}
+                className="flex h-[84px] w-[240px] items-center justify-center rounded-2xl border border-[#E5E5EA] bg-white px-5 shadow-sm"
+              >
+                <img
+                  src={l.src}
+                  alt={l.key}
+                  data-testid={`viewer-loading-logo-${l.key}`}
+                  className="max-h-full max-w-full object-contain"
+                  style={{ aspectRatio: l.ratio }}
+                />
+              </div>
+            ))}
           </div>
-          <p className="mt-3 text-xs text-[#8E8E93]">El modelo pesa 57 MB, puede tardar un momento</p>
+
+          <div className="flex flex-col items-center">
+            <Loader2 size={36} className="animate-spin text-[#1C1C1E]" />
+            <p className="mt-4 text-base font-bold text-[#111111]">Cargando modelo BIM...</p>
+            <p className="mt-1 text-[13px] text-[#8E8E93]">{progress > 0 ? `${progress}%` : "Conectando..."}</p>
+            <div className="mt-4 h-1.5 w-4/5 max-w-md overflow-hidden rounded-full bg-[#E5E5EA]">
+              <div className="h-full rounded-full bg-[#1C1C1E] transition-all" style={{ width: `${progress}%` }} />
+            </div>
+            <p className="mt-3 text-xs text-[#8E8E93]">El modelo pesa 57 MB, puede tardar un momento</p>
+          </div>
         </div>
       )}
 

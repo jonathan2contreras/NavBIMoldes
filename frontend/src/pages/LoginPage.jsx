@@ -4,7 +4,6 @@ import { Box, ChevronRight, Eye, Loader2, Lock, Wrench } from "lucide-react";
 
 import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
-import { LOGOS } from "../lib/theme";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -55,18 +54,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8" data-testid="login-logos">
-          {LOGOS.map((l) => (
-            <img
-              key={l.key}
-              src={l.src}
-              alt={l.key}
-              data-testid={`login-logo-${l.key}`}
-              className="h-[72px] max-w-[85%] object-contain"
-              style={{ aspectRatio: l.ratio }}
-            />
-          ))}
-        </div>
+        <div className="flex-1" />
 
         <div className="flex flex-col gap-3 pb-10">
           {!askPassword ? (
