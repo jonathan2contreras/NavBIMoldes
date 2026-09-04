@@ -59,19 +59,27 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       }
       const payload = { object_name: obj.name, molde, notas: notas.trim(), photo: photoPath };
       await api.saveTag(payload);
-      onSaved?.({ ...obj, ...payload });
+      const mold = molds.find((m) => m.name === molde) || null;
+      onSaved?.({
+        ...obj,
+        ...payload,
+        tipo: mold?.tipo ?? null,
+        color_molde: mold?.color ?? null,
+        ancho: mold?.ancho ?? null,
+        alto: mold?.alto ?? null,
+      });
       onClose();
     } catch {
       setError("No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [obj, molde, notas, photoFile, existingPhoto, onSaved, onClose]);
+  }, [obj, molde, notas, photoFile, existingPhoto, onSaved, onClose, molds]);
 
   const handleDeleteTag = useCallback(async () => {
     setDeleting(true);
     try {
       await api.deleteTag(obj.name);
-      onSaved?.({ ...obj, molde: null, notas: "", photo: null });
+      onSaved?.({ ...obj, molde: null, notas: "", photo: null, tipo: null, color_molde: null, ancho: null, alto: null });
       onClose();
     } catch {
       setError("No se pudo eliminar la etiqueta.");

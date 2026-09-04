@@ -102,7 +102,11 @@ export default function ObjectsPage() {
 
   const handleSaved = useCallback((obj) => {
     setItems((prev) =>
-      prev.map((it) => (it.name === obj.name ? { ...it, molde: obj.molde, notas: obj.notas } : it))
+      prev.map((it) =>
+        it.name === obj.name
+          ? { ...it, molde: obj.molde, notas: obj.notas, tipo: obj.tipo, color_molde: obj.color_molde }
+          : it
+      )
     );
   }, []);
 

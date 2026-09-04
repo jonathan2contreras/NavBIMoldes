@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only retest of the mold-color propagation bug fix (TagSheet -> ViewerPage/ObjectsPage handleSaved). All 6 scenarios in the review request PASS. The fix is correct: TagSheet.handleSave now enriches the onSaved payload with the selected mold's tipo/color/ancho/alto (looked up from the local molds catalog), so ViewerPage.handleSaved posts a setTag command to the iframe with the correct color hex, and ObjectsPage.handleSaved updates the row's color dot immediately.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/components/TagSheet.jsx",
+    "/app/frontend/src/pages/ViewerPage.jsx",
+    "/app/frontend/src/pages/ObjectsPage.jsx"
+  ],
+  "test_evidence": {
+    "viewer_setTag_M02": "{'cmd':'setTag','args':['C1 C1 [6420986]',{'molde':'M-02','color':'#e10e0e'}]}  -- color propagated on first assignment (piece previously had no mold)",
+    "viewer_setTag_M01_change": "{'cmd':'setTag','args':['C1 C1 [6420986]',{'molde':'M-01','color':'#007AFF'}]}  -- correct new color on mold change",
+    "viewer_setTag_delete": "{'cmd':'setTag','args':['C1 C1 [6420986]',null]}  -- passes null so mesh reverts to base color",
+    "viewer_persistence_applyTags_on_reload": "applyTags payload after hard reload contained {'C1 C1 [6420986]': {molde:'M-02', color:'#e10e0e'}} -- confirms server-side persistence, not just optimistic client state",
+    "objects_row_optimistic_M01": "dot rgb(0,122,255) + text 'M-01 · curvo' immediately after Guardar, no reload",
+    "objects_row_delete": "dot rgb(180,186,198) neutral + text 'Sin molde' immediately after delete tag confirm",
+    "bulk_tagging_regression": "Etiquetado masivo modal opens with intact structure (bulk-tag-modal, mold-picker, bulk-notas-input, bulk-tag-apply-button) -- not affected by this fix"
+  },
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TagSheet.handleSave looks up the mold from the local `molds` state fetched at mount; if a brand-new mold is created via MoldPicker inline creation, MoldPicker must also push it into the parent `molds` state (via onMoldsChange) before the user clicks Guardar, otherwise the enrichment lookup returns null and the viewer will not paint the piece until reload. Worth a quick verification of MoldPicker's onMoldsChange callback timing on inline-create.",
+    "ViewerPage.handleSaved only sends {molde, color}. If in the future you want highlight/emissive to also reflect tipo or other mold attributes, extend the tagData payload accordingly.",
+    "Minor: setTag on delete is only fired when TagSheet's `onSaved` is called with molde=null; verify that closing the sheet without saving does NOT accidentally trigger a stale onSaved -- currently code path is clean (onSaved only called from handleSave and handleDeleteTag)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (per request)", "frontend": "100% (6/6 scenarios)"},
+  "test_credentials": "admin password: admin2026 (POST /api/admin/verify)",
+  "seed_data_creation": "Used existing molds M-01 (#007AFF) and M-02 (#e10e0e). Test piece 'C1 C1 [6420986]' was mutated during tests but final cleanup left it in 'Sin molde' state (via delete tag flow).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Fix verified end-to-end. Test approach: injected a postMessage interceptor on iframe.contentWindow to capture the __viewerCmd setTag/applyTags payloads emitted by ViewerPage.sendCmd, then asserted args[1].color matches the expected mold's hex (M-01=#007AFF, M-02=#e10e0e). This is a reliable pattern for the 3D viewer since window-scoped globals (tags, meshesByName) are not exposed on contentWindow due to `let` scoping in viewer.html. Reusable snippet in previous test scripts. Also validated persistence by hooking applyTags after a hard reload.",
+  "rca of the issue": "PRE-FIX ROOT CAUSE: TagSheet.handleSave built `payload = {object_name, molde, notas, photo}` (only fields the /api/tags PUT accepts) and then called `onSaved({...obj, ...payload})`. Because `payload` did not contain `color_molde`, the merged object still carried the STALE `obj.color_molde` from BEFORE the edit (null for a piece that had never been tagged). ViewerPage.handleSaved then executed `sendCmd('setTag', [name, obj.molde ? {molde, color: obj.color_molde} : null])`, so the iframe received color=null and the material fell back to base color. FIX: TagSheet.handleSave now does `const mold = molds.find(m => m.name === molde)` and merges `tipo/color_molde/ancho/alto` from that mold into the onSaved payload. Similarly handleDeleteTag nulls all four fields. ObjectsPage.handleSaved now also copies tipo/color_molde onto the list row so the dot updates immediately. VERIFIED: post-fix setTag postMessage carries {color:'#e10e0e'} for M-02 and {color:'#007AFF'} for M-01."
+}
