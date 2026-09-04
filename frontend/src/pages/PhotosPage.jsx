@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Camera, Compass, Loader2, X } from "lucide-react";
+import { ArrowRight, Camera, Compass, Loader2, Trash2, X } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
 import { Chip } from "../components/Chip";
+import { useRole } from "../context/RoleContext";
 import { FACADE_FILTERS, FACADE_LABELS, displayName, formatDate, statusMeta } from "../lib/theme";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function PhotosPage() {
+  const { isAdmin } = useRole();
   const [facade, setFacade] = useState("all");
   const [fromText, setFromText] = useState("");
   const [toText, setToText] = useState("");
@@ -15,6 +17,30 @@ export default function PhotosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lightbox, setLightbox] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const openLightbox = (it) => {
+    setLightbox(it);
+    setConfirmDelete(false);
+    setDeleteError("");
+  };
+
+  const handleDelete = useCallback(async () => {
+    if (!lightbox) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await api.deletePhoto(lightbox.name, lightbox.photo);
+      setData((d) => d && { total: d.total - 1, items: d.items.filter((it) => it.photo !== lightbox.photo) });
+      setLightbox(null);
+    } catch {
+      setDeleteError("No se pudo eliminar la foto. Inténtalo de nuevo.");
+    } finally {
+      setDeleting(false);
+    }
+  }, [lightbox]);
 
   const fetchPhotos = useCallback(
     async (fac, from, to) => {
@@ -115,11 +141,14 @@ export default function PhotosPage() {
             {data.items.map((it, i) => {
               const meta = statusMeta(it.status);
               return (
-                <button
+                <div
                   key={`${it.photo}-${i}`}
                   data-testid={`photo-card-${i}`}
-                  onClick={() => setLightbox(it)}
-                  className="overflow-hidden rounded-xl border border-[#E5E5EA] bg-white text-left transition-shadow hover:shadow-md"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openLightbox(it)}
+                  onKeyDown={(e) => e.key === "Enter" && openLightbox(it)}
+                  className="group relative cursor-pointer overflow-hidden rounded-xl border border-[#E5E5EA] bg-white text-left transition-shadow hover:shadow-md"
                 >
                   <img
                     src={fileUrl(it.photo)}
@@ -127,6 +156,20 @@ export default function PhotosPage() {
                     loading="lazy"
                     className="aspect-square w-full object-cover"
                   />
+                  {isAdmin && (
+                    <button
+                      data-testid={`photo-delete-button-${i}`}
+                      title="Eliminar foto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openLightbox(it);
+                        setConfirmDelete(true);
+                      }}
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#1C1C1E]/75 text-white opacity-0 transition-opacity hover:bg-[#FF3B30] group-hover:opacity-100 focus:opacity-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                   <div className="p-2.5">
                     <p className="truncate text-[13px] font-semibold text-[#111111]">{displayName(it.name)}</p>
                     <p className="mt-0.5 flex items-center gap-1 text-[11px]">
@@ -142,7 +185,7 @@ export default function PhotosPage() {
                     <p className="mt-0.5 text-[11px] text-[#8E8E93]">{formatDate(it.date)}</p>
                     {!!it.text && <p className="mt-1 truncate text-[11px] text-[#3A3A3C]">{it.text}</p>}
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -175,6 +218,44 @@ export default function PhotosPage() {
               {formatDate(lightbox.date)}
             </p>
             {!!lightbox.text && <p className="mt-1 max-w-xl text-xs text-white/80">{lightbox.text}</p>}
+            {isAdmin && (
+              <div className="mt-4 flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {confirmDelete ? (
+                  <div className="flex items-center gap-2" data-testid="photo-delete-confirm">
+                    <span className="text-xs font-semibold text-white">¿Eliminar esta foto?</span>
+                    <button
+                      data-testid="photo-delete-confirm-button"
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex h-9 items-center gap-1.5 rounded-full bg-[#FF3B30] px-4 text-xs font-bold text-white disabled:opacity-70"
+                    >
+                      {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Sí, eliminar
+                    </button>
+                    <button
+                      data-testid="photo-delete-cancel-button"
+                      onClick={() => setConfirmDelete(false)}
+                      disabled={deleting}
+                      className="h-9 rounded-full bg-white/15 px-4 text-xs font-bold text-white hover:bg-white/25"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    data-testid="photo-lightbox-delete-button"
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-4 text-xs font-bold text-white hover:bg-[#FF3B30]"
+                  >
+                    <Trash2 size={14} /> Eliminar foto
+                  </button>
+                )}
+                {!!deleteError && (
+                  <p className="text-xs text-[#FF6B6B]" data-testid="photo-delete-error">
+                    {deleteError}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -35,6 +35,8 @@ export const api = {
     req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}`),
   getPhotos: (p) =>
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
+  deletePhoto: (objectName, photo) =>
+    req(`/photos?object_name=${encodeURIComponent(objectName)}&photo=${encodeURIComponent(photo)}`, { method: "DELETE" }),
   verifyAdmin: (password) =>
     req("/admin/verify", { method: "POST", body: JSON.stringify({ password }) }),
 };

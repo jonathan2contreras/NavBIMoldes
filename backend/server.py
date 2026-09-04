@@ -487,6 +487,33 @@ async def list_photos(
     return {"total": len(items), "items": items}
 
 
+@api_router.delete("/photos")
+async def delete_photo(object_name: str, photo: str):
+    """Remove an obra photo from a tag observation and soft-delete its file record."""
+    doc = await db.tags.find_one({"object_name": object_name})
+    t = Tag.from_mongo(doc)
+    if not t or not any(ob.get("photo") == photo for ob in t.observations or []):
+        raise HTTPException(status_code=404, detail="Foto no encontrada")
+    observations = []
+    for ob in t.observations:
+        if ob.get("photo") != photo:
+            observations.append(ob)
+            continue
+        if (ob.get("text") or "").strip():
+            observations.append({k: v for k, v in ob.items() if k != "photo"})
+    latest_obs = observations[-1]["text"] if observations else ""
+    if t.status is None and not observations:
+        await db.tags.delete_one({"object_name": object_name})
+    else:
+        await db.tags.update_one(
+            {"object_name": object_name},
+            {"$set": {"observations": observations, "observation": latest_obs,
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    await db.files.update_one({"storage_path": photo}, {"$set": {"is_deleted": True}})
+    return {"deleted": True, "object_name": object_name, "observations": observations}
+
+
 @api_router.get("/objects")
 async def list_objects(
     search: str = "",
