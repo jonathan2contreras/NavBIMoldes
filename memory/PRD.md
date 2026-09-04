@@ -46,10 +46,13 @@
 
 - [x] (4 sep 2026) **Fixes post-testing**: (1) `DELETE /api/molds/{name}` ahora limpia en cascada `tags.molde` de las piezas que lo tenían asignado (verificado con curl). (2) `BulkTagModal` se cierra con tecla Escape además del botón X. (3) Interceptor 401 en `api.js`: cualquier respuesta 401 limpia `bim_token`/`bim_role` y redirige a `/login` automáticamente (sesión de admin caducada a los 30 días).
 
+- [x] (4 sep 2026) **Refinamiento del modelo de moldes**: (1) Medidas ancho/alto pasan a ser propiedades del **molde** (catálogo), no de cada pieza etiquetada — `Mold` ahora incluye `ancho`/`alto`. (2) Nuevo catálogo dinámico de **Tipos** de molde (`tipos`, antes enum fijo curvo/liso/borde_losa/cubre_viga): `GET/POST /api/tipos`, `PUT /api/tipos/{name}` (renombrar, cascada a `molds.tipo`), `DELETE /api/tipos/{name}` (cascada `molds.tipo=null`). Nuevo componente `TipoPicker.jsx` (crear/renombrar/borrar inline) embebido en `MoldPicker.jsx` junto a los inputs de ancho/alto del molde. (3) Se eliminó por completo el campo "Color de pintura" de `Tag`/`TagUpsert`/`BulkTagUpsert` y de toda la UI (`TagSheet.jsx`, `BulkTagModal.jsx`, `ReportsPage.jsx`) — el color del molde es ahora el único color (para etiquetar/visualizar el panel). `TagSheet` muestra en solo lectura "Medidas del molde" tomadas del molde seleccionado. Reportes/PDF/XLSX ahora unen ancho/alto/color desde el molde asignado. Testeado iteration_8 (backend 12/12 pytest tras fix crítico de `Mold.tipo` a `Optional[str]`, frontend 100%).
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.
 - P2: multiusuario / exportar CSV.
+- P2: limpiar molde legado "M-01" (tipo="curvo" minúscula, ancho/alto null) creado en pruebas tempranas.
 
 ## Notas técnicas
 - No modificar MONGO_URL/DB_NAME. GLB en `/app/backend/static/nab3d.glb`; si se reemplaza, borrar `objects.json` para regenerar catálogo.

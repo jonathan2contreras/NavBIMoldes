@@ -1,14 +1,7 @@
-export const TIPOS_MOLDE = [
-  { key: "curvo", label: "Curvo" },
-  { key: "liso", label: "Liso" },
-  { key: "borde_losa", label: "Borde de losa" },
-  { key: "cubre_viga", label: "Cubre viga" },
-];
-
 export const NO_MOLDE_COLOR = "#B4BAC6";
 
 export function tipoLabel(tipo) {
-  return TIPOS_MOLDE.find((t) => t.key === tipo)?.label || tipo || "";
+  return tipo || "";
 }
 
 export const FACADE_LABELS = { norte: "Norte", sur: "Sur", este: "Este", oeste: "Oeste" };

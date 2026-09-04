@@ -54,6 +54,11 @@ export const api = {
   getMolds: () => req("/molds"),
   saveMold: (body) => req("/molds", { method: "POST", body: JSON.stringify(body) }),
   deleteMold: (name) => req(`/molds/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  getTipos: () => req("/tipos"),
+  createTipo: (name) => req("/tipos", { method: "POST", body: JSON.stringify({ name }) }),
+  renameTipo: (name, newName) =>
+    req(`/tipos/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify({ name: newName }) }),
+  deleteTipo: (name) => req(`/tipos/${encodeURIComponent(name)}`, { method: "DELETE" }),
   getMoldsReport: (facade) => req(`/report/molds?facade=${facade || "all"}`),
   getPhotos: (p) =>
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),

@@ -2,17 +2,30 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
 
 import { api } from "../lib/api";
-import { TIPOS_MOLDE, tipoLabel } from "../lib/theme";
+import { TipoPicker } from "./TipoPicker";
 
 export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) => {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [tipo, setTipo] = useState(TIPOS_MOLDE[0].key);
+  const [tipos, setTipos] = useState([]);
+  const [tipo, setTipo] = useState(null);
   const [color, setColor] = useState("#007AFF");
+  const [ancho, setAncho] = useState("");
+  const [alto, setAlto] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const boxRef = useRef(null);
+
+  useEffect(() => {
+    api
+      .getTipos()
+      .then((r) => {
+        setTipos(r.items || []);
+        setTipo((prev) => prev || (r.items || [])[0] || null);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const onClick = (e) => {
@@ -30,10 +43,20 @@ export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) 
       setError("El nombre del molde es obligatorio.");
       return;
     }
+    if (!tipo) {
+      setError("Selecciona o crea un tipo de molde.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      const mold = await api.saveMold({ name: n, tipo, color });
+      const mold = await api.saveMold({
+        name: n,
+        tipo,
+        color,
+        ancho: ancho === "" ? null : Number(ancho),
+        alto: alto === "" ? null : Number(alto),
+      });
       onMoldsChange((prev) => {
         const others = prev.filter((m) => m.name !== mold.name);
         return [...others, mold];
@@ -41,13 +64,15 @@ export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) 
       onChange(mold.name);
       setCreating(false);
       setName("");
+      setAncho("");
+      setAlto("");
       setOpen(false);
     } catch {
       setError("No se pudo crear el molde. Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
-  }, [name, tipo, color, onChange, onMoldsChange]);
+  }, [name, tipo, color, ancho, alto, onChange, onMoldsChange]);
 
   return (
     <div className="relative" ref={boxRef} data-testid="mold-picker">
@@ -62,7 +87,10 @@ export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) 
           <>
             <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: selected.color }} />
             <span className="min-w-0 flex-1 truncate">
-              {selected.name} <span className="text-xs font-medium text-[#8E8E93]">· {tipoLabel(selected.tipo)}</span>
+              {selected.name} <span className="text-xs font-medium text-[#8E8E93]">· {selected.tipo}</span>
+              {selected.ancho && selected.alto && (
+                <span className="text-xs font-medium text-[#8E8E93]"> · {selected.ancho}×{selected.alto}</span>
+              )}
             </span>
           </>
         ) : (
@@ -98,7 +126,10 @@ export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) 
               >
                 <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
                 <span className="min-w-0 flex-1 truncate">{m.name}</span>
-                <span className="text-xs font-medium text-[#8E8E93]">{tipoLabel(m.tipo)}</span>
+                <span className="text-xs font-medium text-[#8E8E93]">
+                  {m.tipo}
+                  {m.ancho && m.alto ? ` · ${m.ancho}×${m.alto}` : ""}
+                </span>
                 {m.name === value && <Check size={14} className="shrink-0 text-[#34C759]" />}
               </button>
             ))}
@@ -129,18 +160,30 @@ export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) 
                   placeholder="Nombre del molde (ej. M-01)"
                   className="h-10 rounded-lg bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
                 />
-                <select
-                  data-testid="mold-picker-new-tipo"
-                  value={tipo}
-                  onChange={(e) => setTipo(e.target.value)}
-                  className="h-10 rounded-lg bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none"
-                >
-                  {TIPOS_MOLDE.map((t) => (
-                    <option key={t.key} value={t.key}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                <p className="text-xs font-semibold text-[#636366]">Tipo de molde</p>
+                <TipoPicker value={tipo} onChange={setTipo} tipos={tipos} onTiposChange={setTipos} />
+                <p className="mt-1 text-xs font-semibold text-[#636366]">Medidas (ancho × alto)</p>
+                <div className="flex items-center gap-2">
+                  <input
+                    data-testid="mold-picker-new-ancho"
+                    type="number"
+                    step="0.01"
+                    value={ancho}
+                    onChange={(e) => setAncho(e.target.value)}
+                    placeholder="Ancho (m)"
+                    className="h-10 flex-1 rounded-lg bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
+                  />
+                  <span className="text-[#8E8E93]">×</span>
+                  <input
+                    data-testid="mold-picker-new-alto"
+                    type="number"
+                    step="0.01"
+                    value={alto}
+                    onChange={(e) => setAlto(e.target.value)}
+                    placeholder="Alto (m)"
+                    className="h-10 flex-1 rounded-lg bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
+                  />
+                </div>
                 <div className="flex items-center gap-2">
                   <input
                     data-testid="mold-picker-new-color"
@@ -149,7 +192,7 @@ export const MoldPicker = ({ value, onChange, disabled, molds, onMoldsChange }) 
                     onChange={(e) => setColor(e.target.value)}
                     className="h-10 w-14 shrink-0 cursor-pointer rounded-lg border border-[#E5E5EA]"
                   />
-                  <span className="text-xs font-medium text-[#8E8E93]">Color en el visor 3D</span>
+                  <span className="text-xs font-medium text-[#8E8E93]">Color para etiquetar el panel (visor 3D)</span>
                 </div>
                 {!!error && (
                   <p className="text-xs text-[#FF3B30]" data-testid="mold-picker-new-error">

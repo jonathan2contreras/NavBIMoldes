@@ -12,9 +12,6 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   const readOnly = !isAdmin;
   const [molds, setMolds] = useState([]);
   const [molde, setMolde] = useState(obj.molde ?? null);
-  const [ancho, setAncho] = useState(obj.ancho ?? "");
-  const [alto, setAlto] = useState(obj.alto ?? "");
-  const [colorPintura, setColorPintura] = useState(obj.color ?? "");
   const [notas, setNotas] = useState(obj.notas ?? "");
   const [existingPhoto, setExistingPhoto] = useState(obj.photo ?? null);
   const [photoFile, setPhotoFile] = useState(null);
@@ -60,15 +57,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
         const up = await api.uploadPhoto(photoFile);
         photoPath = up.path;
       }
-      const payload = {
-        object_name: obj.name,
-        molde,
-        ancho: ancho === "" ? null : Number(ancho),
-        alto: alto === "" ? null : Number(alto),
-        color: colorPintura.trim(),
-        notas: notas.trim(),
-        photo: photoPath,
-      };
+      const payload = { object_name: obj.name, molde, notas: notas.trim(), photo: photoPath };
       await api.saveTag(payload);
       onSaved?.({ ...obj, ...payload });
       onClose();
@@ -76,13 +65,13 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       setError("No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [obj, molde, ancho, alto, colorPintura, notas, photoFile, existingPhoto, onSaved, onClose]);
+  }, [obj, molde, notas, photoFile, existingPhoto, onSaved, onClose]);
 
   const handleDeleteTag = useCallback(async () => {
     setDeleting(true);
     try {
       await api.deleteTag(obj.name);
-      onSaved?.({ ...obj, molde: null, ancho: null, alto: null, color: null, notas: "", photo: null });
+      onSaved?.({ ...obj, molde: null, notas: "", photo: null });
       onClose();
     } catch {
       setError("No se pudo eliminar la etiqueta.");
@@ -93,7 +82,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   const dims = formatDims(obj.dimensions);
   const area = formatArea(obj.dimensions);
   const selectedMold = molds.find((m) => m.name === molde) || null;
-  const hasAnyData = !!(obj.molde || obj.notas || obj.photo || obj.color || obj.ancho || obj.alto);
+  const hasAnyData = !!(obj.molde || obj.notas || obj.photo);
 
   return (
     <div className="fixed inset-0 z-50" data-testid="tag-sheet">
@@ -145,41 +134,11 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
           ) : (
             <MoldPicker value={molde} onChange={setMolde} molds={molds} onMoldsChange={setMolds} />
           )}
-
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Medidas (ancho × alto)</p>
-          <div className="flex items-center gap-2">
-            <input
-              data-testid="medidas-ancho-input"
-              type="number"
-              step="0.01"
-              disabled={readOnly}
-              value={ancho}
-              onChange={(e) => setAncho(e.target.value)}
-              placeholder="Ancho (m)"
-              className="h-11 flex-1 rounded-xl bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93] disabled:opacity-60"
-            />
-            <span className="text-[#8E8E93]">×</span>
-            <input
-              data-testid="medidas-alto-input"
-              type="number"
-              step="0.01"
-              disabled={readOnly}
-              value={alto}
-              onChange={(e) => setAlto(e.target.value)}
-              placeholder="Alto (m)"
-              className="h-11 flex-1 rounded-xl bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93] disabled:opacity-60"
-            />
-          </div>
-
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Color de pintura</p>
-          <input
-            data-testid="color-pintura-input"
-            disabled={readOnly}
-            value={colorPintura}
-            onChange={(e) => setColorPintura(e.target.value)}
-            placeholder="Ej. Blanco Hueso"
-            className="h-11 w-full rounded-xl bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93] disabled:opacity-60"
-          />
+          {!!selectedMold && (selectedMold.ancho || selectedMold.alto) && (
+            <p className="mt-2 text-xs text-[#8E8E93]" data-testid="tag-sheet-mold-medidas">
+              Medidas del molde: {selectedMold.ancho || "—"} × {selectedMold.alto || "—"} m (ancho × alto)
+            </p>
+          )}
 
           <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Notas</p>
           <textarea
@@ -259,7 +218,6 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
                       <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: m ? m.color : "#B4BAC6" }} />
                       <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#111111]">
                         {h.molde || "Sin molde"}
-                        {h.ancho && h.alto ? ` · ${h.ancho}×${h.alto}` : ""}
                       </span>
                       <span className="shrink-0 text-xs text-[#8E8E93]">{formatDate(h.date)}</span>
                     </div>

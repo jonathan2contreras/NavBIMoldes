@@ -142,7 +142,6 @@ export default function ReportsPage() {
                           {"  ·  "}
                           {item.molde ? `${item.molde} · ${tipoLabel(item.tipo)}` : "Sin molde"}
                           {item.ancho && item.alto ? `  ·  ${item.ancho}×${item.alto} m` : ""}
-                          {item.color_pintura ? `  ·  ${item.color_pintura}` : ""}
                         </p>
                       </div>
                     </div>

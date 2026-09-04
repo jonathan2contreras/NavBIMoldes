@@ -24,14 +24,6 @@ MODEL_PATH = STATIC_DIR / 'nab3d.glb'
 OBJECTS_CACHE = STATIC_DIR / 'objects.json'
 VIEWER_PATH = STATIC_DIR / 'viewer.html'
 
-VALID_TIPOS_MOLDE = {"curvo", "liso", "borde_losa", "cubre_viga"}
-TIPO_MOLDE_LABELS = {
-    "curvo": "Curvo",
-    "liso": "Liso",
-    "borde_losa": "Borde de losa",
-    "cubre_viga": "Cubre viga",
-}
-
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -241,9 +233,14 @@ async def startup():
             DIMS = json.load(f)
     await db.tags.create_index("object_name", unique=True)
     await db.molds.create_index("name", unique=True)
+    await db.tipos.create_index("name", unique=True)
     # One-time migration: the old status-based tagging model was replaced by molds.
     # Legacy tag docs (status/observations) carry no meaningful data for the new model.
     await db.tags.delete_many({"status": {"$exists": True}})
+    # Medidas/color moved from the tag to the mold catalog: drop the obsolete per-tag fields.
+    await db.tags.update_many({}, {"$unset": {"ancho": "", "alto": "", "color": ""}})
+    if await db.tipos.count_documents({}) == 0:
+        await db.tipos.insert_many([{"name": n} for n in ["Curvo", "Liso", "Borde de losa", "Cubre viga"]])
     try:
         init_storage()
         logging.info("Object storage initialized")
@@ -274,9 +271,6 @@ class BaseDocument(BaseModel):
 class Tag(BaseDocument):
     object_name: str
     molde: Optional[str] = None
-    ancho: Optional[float] = None
-    alto: Optional[float] = None
-    color: Optional[str] = None
     notas: str = ""
     photo: Optional[str] = None
     updated_at: str = ""
@@ -287,9 +281,6 @@ class Tag(BaseDocument):
 class TagUpsert(BaseModel):
     object_name: str
     molde: Optional[str] = None
-    ancho: Optional[float] = None
-    alto: Optional[float] = None
-    color: Optional[str] = None
     notas: str = ""
     photo: Optional[str] = None
 
@@ -297,23 +288,32 @@ class TagUpsert(BaseModel):
 class BulkTagUpsert(BaseModel):
     object_names: List[str]
     molde: Optional[str] = None
-    ancho: Optional[float] = None
-    alto: Optional[float] = None
-    color: Optional[str] = None
     notas: str = ""
     photo: Optional[str] = None
 
 
 class Mold(BaseDocument):
     name: str
-    tipo: str
+    tipo: Optional[str] = None
     color: str
+    ancho: Optional[float] = None
+    alto: Optional[float] = None
 
 
 class MoldUpsert(BaseModel):
     name: str
     tipo: str
     color: str
+    ancho: Optional[float] = None
+    alto: Optional[float] = None
+
+
+class Tipo(BaseDocument):
+    name: str
+
+
+class TipoUpsert(BaseModel):
+    name: str
 
 
 class AdminVerifyRequest(BaseModel):
@@ -463,10 +463,49 @@ async def save_dims(payload: DimsPayload, _admin=Depends(require_admin)):
     return {"saved": len(clean)}
 
 
+@api_router.get("/tipos")
+async def list_tipos():
+    items = [doc["name"] async for doc in db.tipos.find().sort("name", 1)]
+    return {"items": items}
+
+
+@api_router.post("/tipos")
+async def create_tipo(payload: TipoUpsert, _admin=Depends(require_admin)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="El nombre del tipo es obligatorio")
+    existing = await db.tipos.find_one({"name": name})
+    if not existing:
+        await db.tipos.insert_one({"name": name})
+    return {"name": name}
+
+
+@api_router.put("/tipos/{name}")
+async def rename_tipo(name: str, payload: TipoUpsert, _admin=Depends(require_admin)):
+    new_name = payload.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=422, detail="El nombre del tipo es obligatorio")
+    if not await db.tipos.find_one({"name": name}):
+        raise HTTPException(status_code=404, detail="Tipo no encontrado")
+    await db.tipos.update_one({"name": name}, {"$set": {"name": new_name}})
+    await db.molds.update_many({"tipo": name}, {"$set": {"tipo": new_name}})
+    return {"name": new_name}
+
+
+@api_router.delete("/tipos/{name}")
+async def delete_tipo(name: str, _admin=Depends(require_admin)):
+    await db.tipos.delete_one({"name": name})
+    await db.molds.update_many({"tipo": name}, {"$set": {"tipo": None}})
+    return {"deleted": True, "name": name}
+
+
 @api_router.get("/molds")
 async def list_molds():
     molds = await fetch_molds_map()
-    return {"items": [{"name": m.name, "tipo": m.tipo, "color": m.color} for m in molds.values()]}
+    return {"items": [
+        {"name": m.name, "tipo": m.tipo, "color": m.color, "ancho": m.ancho, "alto": m.alto}
+        for m in molds.values()
+    ]}
 
 
 @api_router.post("/molds")
@@ -474,12 +513,12 @@ async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="El nombre del molde es obligatorio")
-    if payload.tipo not in VALID_TIPOS_MOLDE:
+    if not await db.tipos.find_one({"name": payload.tipo}):
         raise HTTPException(status_code=422, detail="Tipo de molde inválido")
     color = (payload.color or "").strip() or "#8E8E93"
-    mold = Mold(name=name, tipo=payload.tipo, color=color)
+    mold = Mold(name=name, tipo=payload.tipo, color=color, ancho=payload.ancho, alto=payload.alto)
     await db.molds.update_one({"name": name}, {"$set": mold.to_mongo()}, upsert=True)
-    return {"name": mold.name, "tipo": mold.tipo, "color": mold.color}
+    return {"name": mold.name, "tipo": mold.tipo, "color": mold.color, "ancho": mold.ancho, "alto": mold.alto}
 
 
 @api_router.delete("/molds/{name}")
@@ -581,7 +620,7 @@ async def delete_photo(object_name: str, photo: str, _admin=Depends(require_admi
     t = Tag.from_mongo(doc)
     if not t or t.photo != photo:
         raise HTTPException(status_code=404, detail="Foto no encontrada")
-    if not t.molde and not t.notas and t.ancho is None and t.alto is None and not t.color:
+    if not t.molde and not t.notas:
         await db.tags.delete_one({"object_name": object_name})
     else:
         await db.tags.update_one(
@@ -648,9 +687,8 @@ async def get_object(name: str):
         "molde": t.molde if t else None,
         "tipo": mold.tipo if mold else None,
         "color_molde": mold.color if mold else None,
-        "ancho": t.ancho if t else None,
-        "alto": t.alto if t else None,
-        "color": t.color if t else None,
+        "ancho": mold.ancho if mold else None,
+        "alto": mold.alto if mold else None,
         "notas": t.notas if t else "",
         "photo": t.photo if t else None,
         "created_at": t.created_at if t else "",
@@ -685,31 +723,21 @@ async def upsert_tag_doc(payload: TagUpsert) -> dict:
     molde = (payload.molde or "").strip() or None
     notas = payload.notas.strip()
     photo = (payload.photo or "").strip() or None
-    color = (payload.color or "").strip() or None
     existing = await db.tags.find_one({"object_name": payload.object_name})
     prev = Tag.from_mongo(existing) if existing else None
-    if not molde and not notas and not photo and payload.ancho is None and payload.alto is None and not color:
+    if not molde and not notas and not photo:
         await db.tags.delete_one({"object_name": payload.object_name})
-        return {"object_name": payload.object_name, "molde": None, "ancho": None, "alto": None,
-                "color": None, "notas": "", "photo": None, "history": prev.history if prev else []}
+        return {"object_name": payload.object_name, "molde": None,
+                "notas": "", "photo": None, "history": prev.history if prev else []}
     now = datetime.now(timezone.utc).isoformat()
     created_at = prev.created_at if prev and prev.created_at else now
     history = list(prev.history) if prev else []
-    changed = not prev or (
-        prev.molde != molde or prev.ancho != payload.ancho or prev.alto != payload.alto
-        or prev.color != color or prev.notas != notas or prev.photo != photo
-    )
+    changed = not prev or (prev.molde != molde or prev.notas != notas or prev.photo != photo)
     if changed:
-        history.append({
-            "molde": molde, "ancho": payload.ancho, "alto": payload.alto,
-            "color": color, "notas": notas, "photo": photo, "date": now,
-        })
+        history.append({"molde": molde, "notas": notas, "photo": photo, "date": now})
     tag = Tag(
         object_name=payload.object_name,
         molde=molde,
-        ancho=payload.ancho,
-        alto=payload.alto,
-        color=color,
         notas=notas,
         photo=photo,
         updated_at=now,
@@ -724,9 +752,6 @@ async def upsert_tag_doc(payload: TagUpsert) -> dict:
     return {
         "object_name": tag.object_name,
         "molde": tag.molde,
-        "ancho": tag.ancho,
-        "alto": tag.alto,
-        "color": tag.color,
         "notas": tag.notas,
         "photo": tag.photo,
         "created_at": tag.created_at,
@@ -746,10 +771,7 @@ async def bulk_upsert_tags(payload: BulkTagUpsert, _admin=Depends(require_admin)
         raise HTTPException(status_code=422, detail="Sin piezas válidas seleccionadas")
     updated = []
     for name in names:
-        item = TagUpsert(
-            object_name=name, molde=payload.molde, ancho=payload.ancho, alto=payload.alto,
-            color=payload.color, notas=payload.notas, photo=payload.photo,
-        )
+        item = TagUpsert(object_name=name, molde=payload.molde, notas=payload.notas, photo=payload.photo)
         await upsert_tag_doc(item)
         updated.append(name)
     return {"updated": len(updated), "object_names": updated}
@@ -794,9 +816,8 @@ async def build_molds_report(facade: str = "all"):
             "molde": molde,
             "tipo": mold.tipo if mold else None,
             "color": mold.color if mold else None,
-            "ancho": t.ancho if t else None,
-            "alto": t.alto if t else None,
-            "color_pintura": t.color if t else None,
+            "ancho": mold.ancho if mold else None,
+            "alto": mold.alto if mold else None,
         })
     items.sort(key=lambda x: (x["facade"] or "zzz", x["mark"]))
     total = len(items)
@@ -854,7 +875,7 @@ def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
         f"&nbsp;·&nbsp; Sin molde: {data['sin_molde']}", styles["Heading3"]))
     if data["resumen"]:
         summary = "   ·   ".join(
-            f"{r['molde']} ({TIPO_MOLDE_LABELS.get(r['tipo'], r['tipo'] or '—')}): {r['count']}"
+            f"{r['molde']} ({r['tipo'] or '—'}): {r['count']}"
             for r in data["resumen"]
         )
         elems.append(Paragraph(summary, styles["Normal"]))
@@ -866,9 +887,9 @@ def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
             Paragraph(display_name(it["name"]), styles["BodyText"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
             it["molde"] or "—",
-            TIPO_MOLDE_LABELS.get(it["tipo"], "—") if it["tipo"] else "—",
+            it["tipo"] or "—",
             medidas,
-            it.get("color_pintura") or "—",
+            it.get("color") or "—",
         ])
     table = Table(rows, colWidths=[46 * mm, 20 * mm, 28 * mm, 28 * mm, 24 * mm, 24 * mm], repeatRows=1)
     table.setStyle(TableStyle([
@@ -897,7 +918,7 @@ def make_molds_xlsx(data: dict, facade: str = "all") -> bytes:
     ws.append([f"Fachada: {FACADE_LABELS.get(facade, facade) if facade != 'all' else 'Todas'}"])
     ws.append([f"Total paneles: {data['total']}", f"Con molde: {data['con_molde']}", f"Sin molde: {data['sin_molde']}"])
     if data["resumen"]:
-        ws.append([f"{r['molde']} ({TIPO_MOLDE_LABELS.get(r['tipo'], r['tipo'] or '—')})" for r in data["resumen"]])
+        ws.append([f"{r['molde']} ({r['tipo'] or '—'})" for r in data["resumen"]])
         ws.append([str(r["count"]) for r in data["resumen"]])
     ws.append([])
     header = ["Pieza", "Fachada", "Molde", "Tipo", "Ancho", "Alto", "Color"]
@@ -912,10 +933,10 @@ def make_molds_xlsx(data: dict, facade: str = "all") -> bytes:
             display_name(it["name"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
             it["molde"] or "—",
-            TIPO_MOLDE_LABELS.get(it["tipo"], "—") if it["tipo"] else "—",
+            it["tipo"] or "—",
             it.get("ancho") or "",
             it.get("alto") or "",
-            it.get("color_pintura") or "",
+            it.get("color") or "",
         ])
     for col, width in zip("ABCDEFG", [40, 12, 20, 16, 10, 10, 16]):
         ws.column_dimensions[col].width = width

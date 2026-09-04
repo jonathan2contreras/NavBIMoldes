@@ -7,9 +7,6 @@ import { MoldPicker } from "./MoldPicker";
 export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
   const [molds, setMolds] = useState([]);
   const [molde, setMolde] = useState(null);
-  const [ancho, setAncho] = useState("");
-  const [alto, setAlto] = useState("");
-  const [colorPintura, setColorPintura] = useState("");
   const [notas, setNotas] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -38,7 +35,7 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
   }, []);
 
   const handleApply = useCallback(async () => {
-    if (!molde && !colorPintura.trim() && !notas.trim() && !ancho && !alto && !photoFile) {
+    if (!molde && !notas.trim() && !photoFile) {
       setError("Define al menos un campo para aplicar.");
       return;
     }
@@ -50,22 +47,14 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
         const up = await api.uploadPhoto(photoFile);
         photoPath = up.path;
       }
-      await api.bulkSaveTags({
-        object_names: objectNames,
-        molde,
-        ancho: ancho === "" ? null : Number(ancho),
-        alto: alto === "" ? null : Number(alto),
-        color: colorPintura.trim(),
-        notas: notas.trim(),
-        photo: photoPath,
-      });
+      await api.bulkSaveTags({ object_names: objectNames, molde, notas: notas.trim(), photo: photoPath });
       onApplied?.();
       onClose();
     } catch {
       setError("No se pudo aplicar el etiquetado masivo. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [objectNames, molde, ancho, alto, colorPintura, notas, photoFile, onApplied, onClose]);
+  }, [objectNames, molde, notas, photoFile, onApplied, onClose]);
 
   return (
     <div
@@ -92,38 +81,6 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#636366]">Molde de fabricación</p>
           <MoldPicker value={molde} onChange={setMolde} molds={molds} onMoldsChange={setMolds} />
-
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Medidas (ancho × alto)</p>
-          <div className="flex items-center gap-2">
-            <input
-              data-testid="bulk-medidas-ancho-input"
-              type="number"
-              step="0.01"
-              value={ancho}
-              onChange={(e) => setAncho(e.target.value)}
-              placeholder="Ancho (m)"
-              className="h-11 flex-1 rounded-xl bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
-            />
-            <span className="text-[#8E8E93]">×</span>
-            <input
-              data-testid="bulk-medidas-alto-input"
-              type="number"
-              step="0.01"
-              value={alto}
-              onChange={(e) => setAlto(e.target.value)}
-              placeholder="Alto (m)"
-              className="h-11 flex-1 rounded-xl bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
-            />
-          </div>
-
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Color de pintura</p>
-          <input
-            data-testid="bulk-color-pintura-input"
-            value={colorPintura}
-            onChange={(e) => setColorPintura(e.target.value)}
-            placeholder="Ej. Blanco Hueso"
-            className="h-11 w-full rounded-xl bg-[#F2F2F7] px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
-          />
 
           <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Notas</p>
           <textarea

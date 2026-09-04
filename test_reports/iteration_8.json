@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 8 validated: tipos catalog CRUD + cascade (rename propagates to molds.tipo, delete nulls molds.tipo); mold ancho/alto storage; tag schema simplified (no ancho/alto/color de pintura anywhere); reports/PDF/XLSX join molds properly. Backend: 12/12 pytest cases green. Frontend: TagSheet, MoldPicker (with embedded TipoPicker create/rename/delete inline), BulkTagModal, ReportsPage all confirmed free of legacy paint-color / ancho / alto inputs; end-to-end create-tipo-inline -> create-mold-1.5x3.0 -> save-tag flow works and 'Medidas del molde: 1.5 × 3 m (ancho × alto)' renders read-only from the mold. Discovered and FIXED one CRITICAL backend bug during testing: `Mold.tipo` was declared as required `str`, but the delete-tipo cascade sets it to None, which broke `Mold.from_mongo` and blew up `/api/molds`, `/api/report/molds`, and both exports with 500 (ValidationError). Changed to `Optional[str] = None` in /app/backend/server.py — after the fix all endpoints return 200 and all tests pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TipoPicker", "issue": "After clicking the '+' inline-create button, the tipo is created and auto-selected as expected, but the dropdown does NOT auto-close. Because the dropdown overlays the mold form, it visually covers the 'Crear y usar' (mold-picker-new-save) button until the user clicks outside. Minor UX polish — click-outside works as fallback.", "selector": "[data-testid=tipo-picker-new-create]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_tipos_and_mold_props.py",
+    "/app/test_reports/pytest/iter8.xml"
+  ],
+  "action_items": [
+    "OPTIONAL polish: TipoPicker.handleCreate should call setOpen(false) after successful inline-create so the mold-save button is not visually overlapped.",
+    "OPTIONAL cleanup: leftover legacy mold 'M-01' (tipo='curvo' lowercase, ancho/alto null) still exists in DB — not a bug, but consider seeding/normalizing on startup."
+  ],
+  "critical_code_review_comments": [
+    "FIXED HERE: Mold model had `tipo: str` (required) but delete_tipo cascade sets it to None → any list_molds/reports call after tipo deletion returned 500. Now `Optional[str] = None`. This is the same pattern that will bite again if MoldUpsert.tipo ever accepts None from clients — currently it validates against /api/tipos, so create-path is safe.",
+    "TipoPicker.handleCreate does not close the dropdown after creation; consider setOpen(false) for UX.",
+    "delete_tipo cascade leaves molds with tipo=null silently; consider returning affected mold count in response for admin awareness.",
+    "PUT /api/tags now ignores unknown fields (Pydantic default) — legacy clients sending ancho/alto/color get 200 but the fields are silently dropped; consider `model_config = {'extra': 'forbid'}` for stricter contract, or at least log a deprecation warning."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (Mold.tipo: str -> Optional[str] = None)",
+    "/app/backend/tests/test_tipos_and_mold_props.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12) after fix", "frontend": "100% of listed flows"},
+  "test_credentials": "admin: POST /api/admin/verify {password: 'admin2026'}",
+  "seed_data_creation": "Created and cleaned up TEST_TIPO_* and TEST_M_* / UI_MOLD_* fixtures via module-scoped teardown and manual delete after UI test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suite at /app/backend/tests/test_tipos_and_mold_props.py — run serially: `pytest backend/tests/test_tipos_and_mold_props.py -o addopts=''`. Endpoints exercised: /api/tipos GET/POST/PUT/DELETE (with mold cascade), /api/molds GET/POST (with tipo validation + ancho/alto), /api/tags PUT (legacy ancho/alto/color silently dropped), /api/tags/bulk PUT, /api/object?name=, /api/report/molds, /api/report/molds/export?format=pdf|xlsx. All 200. UI testids: tipo-picker, tipo-picker-trigger, tipo-picker-dropdown, tipo-picker-option-<name>, tipo-picker-rename-<name>, tipo-picker-delete-<name>, tipo-picker-edit-input-<name>, tipo-picker-edit-save-<name>, tipo-picker-new-input, tipo-picker-new-create; mold-picker-new-{name,ancho,alto,color,save,cancel}; tag-sheet-mold-medidas.",
+  "rca of the issue": "SYMPTOM: GET /api/molds and /api/report/molds returned 500 after any DELETE /api/tipos/{name} whose tipo was in use. ROOT CAUSE: `delete_tipo` intentionally cascades `db.molds.update_many({tipo: name}, {$set: {tipo: null}})`, but the `Mold` pydantic model declared `tipo: str` (required non-null). So `fetch_molds_map` failed with `ValidationError: tipo Input should be a valid string, input_value=None` when hydrating the now-orphan mold. REPRO: (1) POST /api/tipos {name:'X'}, (2) POST /api/molds {name:'M', tipo:'X', color:'#000'}, (3) DELETE /api/tipos/X, (4) GET /api/molds → 500. FIX: change `Mold.tipo` to `Optional[str] = None` in /app/backend/server.py (line 297). After fix, GET /api/molds returns the orphan mold with tipo=null and all reports render '—' for tipo, matching the intended cascade behavior."
+}
