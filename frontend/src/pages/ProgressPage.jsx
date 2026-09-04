@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Compass, FileText, Loader2, LogOut, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Compass, Factory, FileText, Loader2, LogOut, Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
@@ -251,6 +251,96 @@ export default function ProgressPage() {
                 );
               })()}
             </div>
+
+            {(() => {
+              const c = stats.counts || {};
+              const fabricadoAcum = (c.fabricado || 0) + (c.enviado || 0) + (c.instalado || 0);
+              const instaladoAcum = c.instalado || 0;
+              const gap = fabricadoAcum - instaladoAcum;
+              const base = Math.max(fabricadoAcum, instaladoAcum, 1);
+              const fabPct = (fabricadoAcum / base) * 100;
+              const instPct = (instaladoAcum / base) * 100;
+              const adelantados = gap > 0;
+              return (
+                <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-fab-vs-inst">
+                  <div className="mb-3 flex items-center gap-1.5">
+                    <Factory size={15} className="text-[#636366]" />
+                    <p className="text-[11px] font-bold tracking-widest text-[#636366]">FABRICACIÓN VS INSTALACIÓN</p>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <div data-testid="fab-vs-inst-bar-fabricado">
+                      <div className="mb-1 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#007AFF" }} />
+                          <span className="text-[13px] font-semibold text-[#3A3A3C]">Fabricado</span>
+                        </div>
+                        <span className="text-[13px] font-bold text-[#007AFF]">
+                          {fabricadoAcum.toLocaleString("es-ES")}
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-[#E5E5EA]">
+                        <div
+                          className="h-full rounded-full bg-[#007AFF] transition-all"
+                          style={{ width: `${Math.max(fabPct, fabricadoAcum > 0 ? 2 : 0)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div data-testid="fab-vs-inst-bar-instalado">
+                      <div className="mb-1 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#34C759" }} />
+                          <span className="text-[13px] font-semibold text-[#3A3A3C]">Instalado</span>
+                        </div>
+                        <span className="text-[13px] font-bold text-[#34C759]">
+                          {instaladoAcum.toLocaleString("es-ES")}
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-[#E5E5EA]">
+                        <div
+                          className="h-full rounded-full bg-[#34C759] transition-all"
+                          style={{ width: `${Math.max(instPct, instaladoAcum > 0 ? 2 : 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className="mt-4 flex items-center gap-3 rounded-lg bg-white p-3"
+                    data-testid="fab-vs-inst-summary"
+                  >
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                      style={{ backgroundColor: adelantados ? "#E8F8EE" : "#F2F2F7" }}
+                    >
+                      {adelantados ? (
+                        <TrendingUp size={20} className="text-[#34C759]" />
+                      ) : (
+                        <Minus size={20} className="text-[#8E8E93]" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p
+                        className="text-[15px] font-extrabold"
+                        style={{ color: adelantados ? "#34C759" : "#8E8E93" }}
+                        data-testid="fab-vs-inst-delta"
+                      >
+                        {gap > 0 ? "+" : ""}
+                        {gap.toLocaleString("es-ES")} paneles
+                      </p>
+                      <p className="mt-0.5 text-[12px] leading-snug text-[#636366]" data-testid="fab-vs-inst-message">
+                        {adelantados
+                          ? `Vamos adelantados en fabricación: hay ${gap.toLocaleString(
+                              "es-ES",
+                            )} paneles fabricados esperando instalación.`
+                          : "La instalación está al día con la fabricación: no hay colchón de paneles pendientes."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
