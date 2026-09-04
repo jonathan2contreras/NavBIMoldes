@@ -5,7 +5,7 @@ import { Box, Camera, List, PieChart } from "lucide-react";
 import { useRole } from "../context/RoleContext";
 
 const TABS = [
-  { to: "/", label: "Modelo 3D", icon: null, end: true, testId: "tab-viewer" },
+  { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
   { to: "/photos", label: "Fotos", icon: Camera, testId: "tab-photos" },
   { to: "/progress", label: "Progreso", icon: PieChart, testId: "tab-progress" },
@@ -18,12 +18,6 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen flex-col bg-white">
       <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 sm:px-6" data-testid="main-nav">
-        <div className="mr-4 flex items-center gap-2 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1C1C1E]">
-            <Box size={16} className="text-white" />
-          </div>
-          <span className="hidden text-[15px] font-extrabold text-[#111111] sm:block">BIMTracker</span>
-        </div>
         {TABS.map((t) => (
           <NavLink
             key={t.to}

@@ -135,10 +135,7 @@ export default function ViewerPage() {
 
       <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
-          <p className="text-xl font-extrabold text-[#111111]" data-testid="viewer-title">
-            BIMTracker
-          </p>
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-0.5" data-testid="status-legend">
+          <div className="flex gap-2 overflow-x-auto pb-0.5" data-testid="status-legend">
             {ISO_FILTERS.map((f) => {
               const selected = isoFilter === f.key;
               return (
