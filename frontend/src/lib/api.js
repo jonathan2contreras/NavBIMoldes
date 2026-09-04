@@ -3,10 +3,15 @@ const BASE = process.env.REACT_APP_BACKEND_URL;
 export const BACKEND_URL = BASE;
 export const VIEWER_URL = `${BASE}/api/viewer`;
 
-async function req(path, opts) {
+const authHeaders = () => {
+  const token = localStorage.getItem("bim_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+async function req(path, opts = {}) {
   const r = await fetch(`${BASE}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...opts,
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
   });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
@@ -18,7 +23,7 @@ export const api = {
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
+    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd, headers: authHeaders() });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },

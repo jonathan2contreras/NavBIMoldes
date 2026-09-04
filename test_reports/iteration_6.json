@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 6: end-to-end validation of P0 write protection, P1 PDF with photos, P2 gallery jump-to-piece. Backend: created /app/backend/tests/test_p012_auth_pdf_photos.py (11 tests, all pass). Verified without a Bearer token: PUT /api/tags, POST /api/upload, DELETE /api/photos, POST /api/facades, POST /api/dims all return 401. POST /api/admin/verify with password 'admin2026' returns {ok:true, token:<147-char JWT>}. Wrong password returns {ok:false}. With a garbage Bearer token PUT /api/tags returns 401. With the real token, PUT /api/tags on 'C1 [6420986]' returns 200 and GET /api/object confirms the status was persisted. GET /api/report/export?format=pdf returns 200, content-type application/pdf, starts with %PDF, >2KB. XLSX still returns 200 with PK zip magic. GET /api/photos returns items with 'name' and 'photo' fields needed for the P2 jump. Frontend: Playwright covered the four flows. (1) Admin: role-admin-button -> admin-password-input='admin2026' -> Acceder navigates away from /login and localStorage has bim_role=admin plus bim_token (147 chars). (2) Objetos page: opened first object row, tag-sheet renders with status-pill-fabricado ... status-pill-observaciones + tag-sheet-save-button visible; clicking Guardar with a status change returned no error and history now shows the new event. (3) Fotos page: 1 photo present, clicking photo-card-0 opens photo-lightbox with photo-goto-piece-button; clicking it fetches the object and opens tag-sheet, lightbox is closed. (4) Viewer (bim_role=viewer, no token): tag-sheet opens with a 'Modo usuario — solo visualización' banner, tag-sheet-save-button is absent and no button with text 'Guardar' exists inside the sheet, confirming read-only. Regression suite from prev iterations remains untouched (5 backend suites all still discoverable).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_p012_auth_pdf_photos.py",
+    "/app/test_reports/pytest/iter6_p012.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "require_admin() correctly distinguishes ExpiredSignatureError (401) from InvalidTokenError (401) and role mismatch (403). Good separation.",
+    "verify_admin returns 200 with {ok:false} on wrong password rather than 401 — this is by design (avoids leaking auth failures via status) and the frontend inspects res.ok flag; acceptable but note that generic HTTP clients will not treat this as a failure. Consider 401 for API parity if any external clients call it.",
+    "server.py is now ~980 lines — approaching the 700-line soft limit in the code-review guidelines. Consider extracting the report builders (make_pdf/make_xlsx) and the storage helpers into separate modules for maintainability.",
+    "PhotosPage.openPiece falls back to a stub obj ({name, mark}) on getObject failure, which could open a TagSheet without dimensions/history. Not critical, but a small toast on error would be friendlier than silently opening a partial sheet.",
+    "authHeaders() reads localStorage on every request — fine for this app size, but the token is not refreshed. When the 30-day JWT expires, the UI will start getting 401s with no automatic re-login prompt; consider a 401 interceptor that clears bim_token and routes to /login."
+  ],
+  "updated_files": ["/app/backend/tests/test_p012_auth_pdf_photos.py", "/app/test_reports/iteration_6.json"],
+  "success_rate": {"backend": "100% (11/11 P0+P1+P2 tests pass)", "frontend": "100% (4/4 flows pass: admin login, admin tag save, gallery jump, viewer read-only)"},
+  "test_credentials": "Admin shared password: admin2026. Viewer: no password (localStorage bim_role=viewer).",
+  "seed_data_creation": "PUT /api/tags on 'C1 [6420986]' with status=fabricado and observation='TEST_p0' (persisted, visible in history).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Six backend test suites now live under /app/backend/tests/. Run with: pytest /app/backend/tests/ -o addopts='' -v. For frontend, admin token is obtained via /api/admin/verify with password 'admin2026' and must be stored in localStorage as 'bim_token' (147 chars, HS256 JWT). Viewer role is passwordless (localStorage.bim_role='viewer').",
+  "rca of the issue": "N/A — P0/P1/P2 all working correctly end-to-end."
+}

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Camera, Check, Compass, ImagePlus, Loader2, Search, Trash2, X } from "lucide-react";
+import { ArrowRight, Camera, Check, Compass, ImagePlus, Loader2, PanelsTopLeft, Search, Trash2, X } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
 import { Chip } from "../components/Chip";
+import { TagSheet } from "../components/TagSheet";
 import { useRole } from "../context/RoleContext";
 import { FACADE_FILTERS, FACADE_LABELS, displayName, formatDate, statusMeta } from "../lib/theme";
 
@@ -32,6 +33,23 @@ export default function PhotosPage() {
   const [note, setNote] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+
+  const [sheetObj, setSheetObj] = useState(null);
+  const [openingSheet, setOpeningSheet] = useState(false);
+
+  const openPiece = useCallback(async (name) => {
+    setOpeningSheet(true);
+    try {
+      const obj = await api.getObject(name);
+      setSheetObj(obj);
+      setLightbox(null);
+    } catch {
+      setSheetObj({ name, mark: name.split(" ")[0] });
+      setLightbox(null);
+    } finally {
+      setOpeningSheet(false);
+    }
+  }, []);
 
   const handleNewPick = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -316,6 +334,16 @@ export default function PhotosPage() {
               {formatDate(lightbox.date)}
             </p>
             {!!lightbox.text && <p className="mt-1 max-w-xl text-xs text-white/80">{lightbox.text}</p>}
+            <div className="mt-4 flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <button
+                data-testid="photo-goto-piece-button"
+                onClick={() => openPiece(lightbox.name)}
+                disabled={openingSheet}
+                className="flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-xs font-bold text-[#111111] transition-opacity hover:opacity-90 disabled:opacity-70"
+              >
+                {openingSheet ? <Loader2 size={14} className="animate-spin" /> : <PanelsTopLeft size={14} />} Ir a la pieza
+              </button>
+            </div>
             {isAdmin && (
               <div className="mt-4 flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
                 {confirmDelete ? (
@@ -491,6 +519,14 @@ export default function PhotosPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {sheetObj && (
+        <TagSheet
+          obj={sheetObj}
+          onClose={() => setSheetObj(null)}
+          onSaved={() => fetchPhotos(facade, fromText, toText)}
+        />
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File, Depends, Request
 from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ import logging
 import requests
 from pathlib import Path
 import bcrypt
+import jwt
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated
 from datetime import datetime, timezone, timedelta
@@ -351,6 +352,36 @@ async def get_viewer():
                         headers={"Cache-Control": "no-cache"})
 
 
+JWT_ALGORITHM = "HS256"
+ADMIN_TOKEN_DAYS = 30
+
+
+def create_admin_token() -> str:
+    payload = {
+        "role": "admin",
+        "exp": datetime.now(timezone.utc) + timedelta(days=ADMIN_TOKEN_DAYS),
+        "type": "access",
+    }
+    return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
+
+
+def require_admin(request: Request):
+    """Dependency: enforce a valid admin JWT on write endpoints."""
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+    if not token:
+        raise HTTPException(status_code=401, detail="Se requiere acceso de administrador.")
+    try:
+        payload = jwt.decode(token, os.environ["JWT_SECRET"], algorithms=[JWT_ALGORITHM])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="La sesión de administrador ha caducado. Vuelve a iniciar sesión.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Acceso de administrador inválido.")
+    if payload.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Acción reservada a administradores.")
+    return payload
+
+
 @api_router.post("/admin/verify")
 async def verify_admin(payload: AdminVerifyRequest):
     """Verify the shared admin password against the bcrypt hash in the env."""
@@ -363,7 +394,7 @@ async def verify_admin(payload: AdminVerifyRequest):
             ok = False
     if not ok:
         return {"ok": False, "message": "Contraseña de administrador incorrecta."}
-    return {"ok": True, "message": "Acceso de administrador concedido."}
+    return {"ok": True, "message": "Acceso de administrador concedido.", "token": create_admin_token()}
 
 
 @api_router.get("/facades/count")
@@ -372,7 +403,7 @@ async def facades_count():
 
 
 @api_router.post("/facades")
-async def save_facades(payload: FacadesPayload):
+async def save_facades(payload: FacadesPayload, _admin=Depends(require_admin)):
     """Persist the per-object cardinal orientation computed by the 3D viewer."""
     global FACADES
     clean = {k: v for k, v in payload.facades.items() if k in NAME_SET and v in VALID_FACADES}
@@ -390,7 +421,7 @@ async def dims_count():
 
 
 @api_router.post("/dims")
-async def save_dims(payload: DimsPayload):
+async def save_dims(payload: DimsPayload, _admin=Depends(require_admin)):
     """Persist per-object bounding box sizes [sx, sy, sz] computed by the 3D viewer."""
     global DIMS
     clean = {}
@@ -412,7 +443,7 @@ ALLOWED_IMG = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic
 
 
 @api_router.post("/upload")
-async def upload_photo(file: UploadFile = File(...)):
+async def upload_photo(file: UploadFile = File(...), _admin=Depends(require_admin)):
     if file.content_type not in ALLOWED_IMG:
         raise HTTPException(status_code=422, detail="Solo se permiten imágenes (JPG, PNG, WEBP, GIF)")
     data = await file.read()
@@ -488,7 +519,7 @@ async def list_photos(
 
 
 @api_router.delete("/photos")
-async def delete_photo(object_name: str, photo: str):
+async def delete_photo(object_name: str, photo: str, _admin=Depends(require_admin)):
     """Remove an obra photo from a tag observation and soft-delete its file record."""
     doc = await db.tags.find_one({"object_name": object_name})
     t = Tag.from_mongo(doc)
@@ -589,7 +620,7 @@ async def get_tags():
 
 
 @api_router.put("/tags")
-async def upsert_tag(payload: TagUpsert):
+async def upsert_tag(payload: TagUpsert, _admin=Depends(require_admin)):
     if payload.object_name not in NAME_SET:
         raise HTTPException(status_code=404, detail="Objeto no encontrado")
     if payload.status is not None and payload.status not in VALID_STATUSES:
@@ -723,7 +754,29 @@ async def build_report(from_: str, to: str, status: str, facade: str = "all"):
             if ev_status in counts:
                 counts[ev_status] += 1
     items.sort(key=lambda x: x["date"] or "", reverse=True)
-    return {"total": len(items), "counts": counts, "items": items}
+    # Photos attached to observations within the same facade + date range
+    photos = []
+    for name, t in tags.items():
+        if facade != "all" and FACADES.get(name) != facade:
+            continue
+        for ob in t.observations or []:
+            p = ob.get("photo")
+            if not p:
+                continue
+            d = (ob.get("date") or "")[:10]
+            if from_ and d < from_:
+                continue
+            if to and d > to:
+                continue
+            photos.append({
+                "name": name,
+                "facade": FACADES.get(name),
+                "photo": p,
+                "text": ob.get("text", ""),
+                "date": ob.get("date"),
+            })
+    photos.sort(key=lambda x: x["date"] or "", reverse=True)
+    return {"total": len(items), "counts": counts, "items": items, "photos": photos}
 
 
 @api_router.get("/report")
@@ -745,7 +798,7 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.platypus import Image as RLImage
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte BIMTracker",
@@ -801,6 +854,44 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     elems.append(table)
+
+    # Fotos de obra adjuntas a las observaciones del período
+    photos = data.get("photos") or []
+    if photos:
+        cap_style = ParagraphStyle("cap", parent=styles["BodyText"], fontSize=7, leading=8, alignment=1)
+        cells = []
+        for ph in photos[:60]:
+            try:
+                raw, _ = storage_get_object(ph["photo"])
+                img = RLImage(BytesIO(raw), width=48 * mm, height=48 * mm, kind="proportional")
+            except Exception as e:
+                logging.warning(f"Report photo skipped ({ph['photo']}): {e}")
+                continue
+            cap = display_name(ph["name"]) + " · " + (ph["date"] or "")[:10]
+            if ph.get("facade") and FACADE_LABELS.get(ph["facade"]):
+                cap = FACADE_LABELS[ph["facade"]] + " — " + cap
+            inner_rows = [[img], [Paragraph(cap, cap_style)]]
+            if ph.get("text"):
+                inner_rows.append([Paragraph(ph["text"], cap_style)])
+            inner = Table(inner_rows, colWidths=[56 * mm])
+            inner.setStyle(TableStyle([
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ]))
+            cells.append(inner)
+        if cells:
+            elems.append(Spacer(1, 6 * mm))
+            elems.append(Paragraph(f"Fotos de obra ({len(cells)})", styles["Heading3"]))
+            elems.append(Spacer(1, 3 * mm))
+            grid = [cells[i:i + 3] for i in range(0, len(cells), 3)]
+            for r in grid:
+                while len(r) < 3:
+                    r.append("")
+            gt = Table(grid, colWidths=[60 * mm] * 3)
+            gt.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            elems.append(gt)
+
     doc.build(elems)
     return buf.getvalue()
 

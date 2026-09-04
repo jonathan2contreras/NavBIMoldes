@@ -4,7 +4,7 @@ import pytest
 import requests
 from datetime import datetime, timezone
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://web-builder-3001.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://bim-progress-hub.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 # Frontend env is not populated in backend container, use production URL from FE env

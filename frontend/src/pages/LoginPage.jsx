@@ -30,7 +30,7 @@ export default function LoginPage() {
     try {
       const res = await api.verifyAdmin(password);
       if (res.ok) {
-        setRole("admin");
+        setRole("admin", res.token);
         navigate("/", { replace: true });
       } else {
         setError(res.message || "Contraseña de administrador incorrecta.");
