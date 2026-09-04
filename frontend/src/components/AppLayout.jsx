@@ -17,7 +17,7 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 sm:px-6" data-testid="main-nav">
+      <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
         {TABS.map((t) => (
           <NavLink
             key={t.to}
@@ -25,7 +25,7 @@ export default function AppLayout() {
             end={t.end}
             data-testid={t.testId}
             className={({ isActive }) =>
-              `flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+              `flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${
                 isActive ? "bg-[#1C1C1E] text-white" : "text-[#3A3A3C] hover:bg-[#F2F2F7]"
               }`
             }
