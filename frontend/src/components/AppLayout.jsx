@@ -1,6 +1,6 @@
 import React from "react";
-import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { Box, Camera, List, PieChart } from "lucide-react";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Box, Camera, FileText, List, LogOut } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 
@@ -8,11 +8,12 @@ const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
   { to: "/photos", label: "Fotos", icon: Camera, testId: "tab-photos" },
-  { to: "/progress", label: "Progreso", icon: PieChart, testId: "tab-progress" },
+  { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
 ];
 
 export default function AppLayout() {
-  const { role } = useRole();
+  const { role, logout } = useRole();
+  const navigate = useNavigate();
   if (!role) return <Navigate to="/login" replace />;
 
   return (
@@ -37,6 +38,16 @@ export default function AppLayout() {
         <span className="ml-auto text-[11px] font-semibold text-[#8E8E93]" data-testid="nav-role-label">
           {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
         </span>
+        <button
+          data-testid="logout-button"
+          onClick={() => {
+            logout();
+            navigate("/login", { replace: true });
+          }}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F2F2F7] transition-opacity hover:opacity-70"
+        >
+          <LogOut size={16} className="text-[#636366]" />
+        </button>
       </nav>
       <main className="min-h-0 flex-1">
         <Outlet />

@@ -29,15 +29,18 @@ export const api = {
   },
   getObjects: (p) =>
     req(
-      `/objects?search=${encodeURIComponent(p.search || "")}&status=${p.status || "all"}&facade=${p.facade || "all"}&skip=${p.skip || 0}&limit=${p.limit || 50}`
+      `/objects?search=${encodeURIComponent(p.search || "")}&molde=${encodeURIComponent(p.molde || "all")}&facade=${p.facade || "all"}&skip=${p.skip || 0}&limit=${p.limit || 50}`
     ),
   getObject: (name) => req(`/object?name=${encodeURIComponent(name)}`),
   getObjectMesh: (name) => req(`/object/mesh?name=${encodeURIComponent(name)}`),
   getTags: () => req("/tags"),
   saveTag: (body) => req("/tags", { method: "PUT", body: JSON.stringify(body) }),
-  getStats: () => req("/stats"),
-  getReport: (p) =>
-    req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}`),
+  bulkSaveTags: (body) => req("/tags/bulk", { method: "PUT", body: JSON.stringify(body) }),
+  deleteTag: (objectName) => req(`/tags?object_name=${encodeURIComponent(objectName)}`, { method: "DELETE" }),
+  getMolds: () => req("/molds"),
+  saveMold: (body) => req("/molds", { method: "POST", body: JSON.stringify(body) }),
+  deleteMold: (name) => req(`/molds/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  getMoldsReport: (facade) => req(`/report/molds?facade=${facade || "all"}`),
   getPhotos: (p) =>
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   deletePhoto: (objectName, photo) =>

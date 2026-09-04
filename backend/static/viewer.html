@@ -18,8 +18,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const STATUS_COLORS = { fabricado: 0x007AFF, enviado: 0xFF9500, instalado: 0x34C759, entregable: 0xF3EAD0, observaciones: 0xFFD60A };
 const BASE_COLOR = 0xC9CFDA;
+
+function hexToInt(hex) {
+  if (!hex) return null;
+  const h = hex.replace('#', '');
+  const n = parseInt(h, 16);
+  return Number.isNaN(n) ? null : n;
+}
 
 function send(msg) {
   const s = JSON.stringify(msg);
@@ -76,19 +82,16 @@ window.addEventListener('resize', () => {
   requestRender();
 });
 
-// Materials (shared per status/highlight combo)
+// Materials (shared per molde color/highlight combo)
 const matCache = {};
-function matFor(status, highlighted) {
-  const key = (status || 'none') + (highlighted ? '_hl' : '');
+function matFor(tagData, highlighted) {
+  const hex = tagData && tagData.color ? hexToInt(tagData.color) : null;
+  const key = (hex !== null ? hex : 'none') + (highlighted ? '_hl' : '');
   if (!matCache[key]) {
-    let color = status && STATUS_COLORS[status] ? STATUS_COLORS[status] : BASE_COLOR;
-    // entregable: ivory when tagged, pure bright white when selected
-    if (status === 'entregable' && highlighted) color = 0xFFFFFF;
+    const color = hex !== null ? hex : BASE_COLOR;
     const m = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide });
-    if (status === 'entregable') {
-      m.emissive = new THREE.Color(0xffffff).multiplyScalar(highlighted ? 0.85 : 0.3);
-    } else if (highlighted) {
-      m.emissive = new THREE.Color(status ? color : 0x2E6BD6).multiplyScalar(0.45);
+    if (highlighted) {
+      m.emissive = new THREE.Color(hex !== null ? color : 0x2E6BD6).multiplyScalar(0.45);
     }
     matCache[key] = m;
   }
@@ -114,8 +117,8 @@ let sceneMaxDim = 1;
 let loaded = false;
 
 function isVisibleFor(name) {
-  const st = tags[name] || null;
-  return isolation === 'all' || (isolation === 'none' ? !st : st === isolation);
+  const molde = (tags[name] && tags[name].molde) || null;
+  return isolation === 'all' || (isolation === 'none' ? !molde : molde === isolation);
 }
 
 function refreshMesh(name) {
@@ -178,8 +181,8 @@ window.viewerAPI = {
     if (!loaded) { pendingTags = o; return; }
     applyAll();
   },
-  setTag(name, status) {
-    if (status) tags[name] = status; else delete tags[name];
+  setTag(name, tagData) {
+    if (tagData) tags[name] = tagData; else delete tags[name];
     refreshMesh(name);
   },
   clearSelection() {

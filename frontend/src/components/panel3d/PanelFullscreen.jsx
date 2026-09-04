@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
-import { FACADE_LABELS, NO_STATUS_COLOR, dimParts, displayName, statusMeta } from "../../lib/theme";
+import { FACADE_LABELS, NO_MOLDE_COLOR, dimParts, displayName, tipoLabel } from "../../lib/theme";
 import { usePanelScene } from "./usePanelScene";
 
 export const PanelFullscreen = ({ obj, mesh, onClose }) => {
@@ -16,7 +16,6 @@ export const PanelFullscreen = ({ obj, mesh, onClose }) => {
 
   const p = dimParts(obj.dimensions) || dimParts(mesh?.size);
   const facade = (obj.facade && FACADE_LABELS[obj.facade]) || "—";
-  const meta = statusMeta(obj.status);
 
   return (
     <div className="fixed inset-0 z-[60] bg-[#EDEEF2] animate-in fade-in duration-200" data-testid="panel-fullscreen">
@@ -26,7 +25,7 @@ export const PanelFullscreen = ({ obj, mesh, onClose }) => {
         <div className="flex items-center gap-2.5">
           <span
             className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: meta ? meta.accent : NO_STATUS_COLOR }}
+            style={{ backgroundColor: obj.color_molde || NO_MOLDE_COLOR }}
             data-testid="panel-fullscreen-status-dot"
           />
           <p className="truncate text-2xl font-extrabold tracking-tight text-[#111111] sm:text-3xl" data-testid="panel-fullscreen-code">
@@ -45,7 +44,7 @@ export const PanelFullscreen = ({ obj, mesh, onClose }) => {
             </>
           )}
           {" · "}
-          <span data-testid="panel-fullscreen-status">{meta ? meta.label : "Sin estado"}</span>
+          <span data-testid="panel-fullscreen-status">{obj.molde ? `${obj.molde} · ${tipoLabel(obj.tipo)}` : "Sin molde"}</span>
         </p>
       </div>
 

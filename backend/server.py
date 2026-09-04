@@ -24,16 +24,12 @@ MODEL_PATH = STATIC_DIR / 'nab3d.glb'
 OBJECTS_CACHE = STATIC_DIR / 'objects.json'
 VIEWER_PATH = STATIC_DIR / 'viewer.html'
 
-VALID_STATUSES = {"fabricado", "enviado", "instalado", "entregable", "observaciones"}
-STATUS_ORDER = ["fabricado", "enviado", "instalado", "entregable", "observaciones"]
-STATUS_LABELS = {
-    "fabricado": "Fabricado",
-    "enviado": "Enviado",
-    "instalado": "Instalado",
-    "entregado": "Entregado",  # kept for historical events in old reports
-    "entregable": "Entregable",
-    "observaciones": "Observaciones",
-    "all": "Todas",
+VALID_TIPOS_MOLDE = {"curvo", "liso", "borde_losa", "cubre_viga"}
+TIPO_MOLDE_LABELS = {
+    "curvo": "Curvo",
+    "liso": "Liso",
+    "borde_losa": "Borde de losa",
+    "cubre_viga": "Cubre viga",
 }
 
 # MongoDB connection
@@ -244,18 +240,10 @@ async def startup():
         with open(DIMS_PATH) as f:
             DIMS = json.load(f)
     await db.tags.create_index("object_name", unique=True)
-    # 'entregado' status removed from the app: clear it from existing tags (history is kept)
-    await db.tags.update_many({"status": "entregado"}, {"$set": {"status": None}})
-    # Backfill created_at / history for tags created before history support
-    async for doc in db.tags.find():
-        upd = {}
-        date = doc.get("updated_at") or datetime.now(timezone.utc).isoformat()
-        if not doc.get("created_at"):
-            upd["created_at"] = date
-        if doc.get("status") and not doc.get("history"):
-            upd["history"] = [{"status": doc["status"], "date": date}]
-        if upd:
-            await db.tags.update_one({"_id": doc["_id"]}, {"$set": upd})
+    await db.molds.create_index("name", unique=True)
+    # One-time migration: the old status-based tagging model was replaced by molds.
+    # Legacy tag docs (status/observations) carry no meaningful data for the new model.
+    await db.tags.delete_many({"status": {"$exists": True}})
     try:
         init_storage()
         logging.info("Object storage initialized")
@@ -285,19 +273,47 @@ class BaseDocument(BaseModel):
 
 class Tag(BaseDocument):
     object_name: str
-    status: Optional[str] = None
-    observation: str = ""
+    molde: Optional[str] = None
+    ancho: Optional[float] = None
+    alto: Optional[float] = None
+    color: Optional[str] = None
+    notas: str = ""
+    photo: Optional[str] = None
     updated_at: str = ""
     created_at: str = ""
     history: List[dict] = []
-    observations: List[dict] = []
 
 
 class TagUpsert(BaseModel):
     object_name: str
-    status: Optional[str] = None
-    observation: str = ""
+    molde: Optional[str] = None
+    ancho: Optional[float] = None
+    alto: Optional[float] = None
+    color: Optional[str] = None
+    notas: str = ""
     photo: Optional[str] = None
+
+
+class BulkTagUpsert(BaseModel):
+    object_names: List[str]
+    molde: Optional[str] = None
+    ancho: Optional[float] = None
+    alto: Optional[float] = None
+    color: Optional[str] = None
+    notas: str = ""
+    photo: Optional[str] = None
+
+
+class Mold(BaseDocument):
+    name: str
+    tipo: str
+    color: str
+
+
+class MoldUpsert(BaseModel):
+    name: str
+    tipo: str
+    color: str
 
 
 class AdminVerifyRequest(BaseModel):
@@ -331,6 +347,14 @@ async def fetch_tags_map() -> dict:
             continue
         tags[t.object_name] = t
     return tags
+
+
+async def fetch_molds_map() -> dict:
+    molds = {}
+    async for doc in db.molds.find():
+        m = Mold.from_mongo(doc)
+        molds[m.name] = m
+    return molds
 
 
 # ---------- Routes ----------
@@ -439,6 +463,31 @@ async def save_dims(payload: DimsPayload, _admin=Depends(require_admin)):
     return {"saved": len(clean)}
 
 
+@api_router.get("/molds")
+async def list_molds():
+    molds = await fetch_molds_map()
+    return {"items": [{"name": m.name, "tipo": m.tipo, "color": m.color} for m in molds.values()]}
+
+
+@api_router.post("/molds")
+async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="El nombre del molde es obligatorio")
+    if payload.tipo not in VALID_TIPOS_MOLDE:
+        raise HTTPException(status_code=422, detail="Tipo de molde inválido")
+    color = (payload.color or "").strip() or "#8E8E93"
+    mold = Mold(name=name, tipo=payload.tipo, color=color)
+    await db.molds.update_one({"name": name}, {"$set": mold.to_mongo()}, upsert=True)
+    return {"name": mold.name, "tipo": mold.tipo, "color": mold.color}
+
+
+@api_router.delete("/molds/{name}")
+async def delete_mold(name: str, _admin=Depends(require_admin)):
+    await db.molds.delete_one({"name": name})
+    return {"deleted": True, "name": name}
+
+
 ALLOWED_IMG = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
 
 
@@ -487,73 +536,67 @@ async def list_photos(
     from_: str = Query(default="", alias="from"),
     to: str = "",
 ):
-    """Gallery of all obra photos attached to observations, filterable by facade and date."""
+    """Gallery of all obra photos attached to tags, filterable by facade and date."""
     if facade != "all" and facade not in VALID_FACADES:
         raise HTTPException(status_code=422, detail="Fachada inválida")
+    molds = await fetch_molds_map()
     items = []
-    async for doc in db.tags.find({"observations.photo": {"$exists": True}}):
+    async for doc in db.tags.find({"photo": {"$ne": None}}):
         t = Tag.from_mongo(doc)
+        if not t.photo:
+            continue
         fac = FACADES.get(t.object_name)
         if facade != "all" and fac != facade:
             continue
-        for ob in t.observations or []:
-            photo = ob.get("photo")
-            if not photo:
-                continue
-            d = (ob.get("date") or "")[:10]
-            if from_ and d < from_:
-                continue
-            if to and d > to:
-                continue
-            items.append({
-                "name": t.object_name,
-                "mark": t.object_name.split(" ")[0],
-                "facade": fac,
-                "photo": photo,
-                "text": ob.get("text", ""),
-                "date": ob.get("date"),
-                "status": t.status,
-            })
+        d = (t.updated_at or "")[:10]
+        if from_ and d < from_:
+            continue
+        if to and d > to:
+            continue
+        mold = molds.get(t.molde) if t.molde else None
+        items.append({
+            "name": t.object_name,
+            "mark": t.object_name.split(" ")[0],
+            "facade": fac,
+            "photo": t.photo,
+            "text": t.notas,
+            "date": t.updated_at,
+            "molde": t.molde,
+            "tipo": mold.tipo if mold else None,
+            "color_molde": mold.color if mold else None,
+        })
     items.sort(key=lambda x: x["date"] or "", reverse=True)
     return {"total": len(items), "items": items}
 
 
 @api_router.delete("/photos")
 async def delete_photo(object_name: str, photo: str, _admin=Depends(require_admin)):
-    """Remove an obra photo from a tag observation and soft-delete its file record."""
+    """Remove the obra photo from a tag and soft-delete its file record."""
     doc = await db.tags.find_one({"object_name": object_name})
     t = Tag.from_mongo(doc)
-    if not t or not any(ob.get("photo") == photo for ob in t.observations or []):
+    if not t or t.photo != photo:
         raise HTTPException(status_code=404, detail="Foto no encontrada")
-    observations = []
-    for ob in t.observations:
-        if ob.get("photo") != photo:
-            observations.append(ob)
-            continue
-        if (ob.get("text") or "").strip():
-            observations.append({k: v for k, v in ob.items() if k != "photo"})
-    latest_obs = observations[-1]["text"] if observations else ""
-    if t.status is None and not observations:
+    if not t.molde and not t.notas and t.ancho is None and t.alto is None and not t.color:
         await db.tags.delete_one({"object_name": object_name})
     else:
         await db.tags.update_one(
             {"object_name": object_name},
-            {"$set": {"observations": observations, "observation": latest_obs,
-                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {"photo": None, "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
     await db.files.update_one({"storage_path": photo}, {"$set": {"is_deleted": True}})
-    return {"deleted": True, "object_name": object_name, "observations": observations}
+    return {"deleted": True, "object_name": object_name}
 
 
 @api_router.get("/objects")
 async def list_objects(
     search: str = "",
-    status: str = "all",
+    molde: str = "all",
     facade: str = "all",
     skip: int = 0,
     limit: int = Query(default=50, le=200),
 ):
     tags = await fetch_tags_map()
+    molds = await fetch_molds_map()
     q = search.strip().lower()
     filtered = []
     for o in OBJECTS:
@@ -562,19 +605,22 @@ async def list_objects(
         if facade != "all" and FACADES.get(o['name']) != facade:
             continue
         t = tags.get(o['name'])
-        t_status = t.status if t else None
-        if status == "none":
-            if t_status is not None:
+        t_molde = t.molde if t else None
+        if molde == "none":
+            if t_molde is not None:
                 continue
-        elif status != "all":
-            if t_status != status:
+        elif molde != "all":
+            if t_molde != molde:
                 continue
+        mold = molds.get(t_molde) if t_molde else None
         filtered.append({
             "name": o['name'],
             "mark": o['mark'],
             "facade": FACADES.get(o['name']),
-            "status": t_status,
-            "observation": t.observation if t else "",
+            "molde": t_molde,
+            "tipo": mold.tipo if mold else None,
+            "color_molde": mold.color if mold else None,
+            "notas": t.notas if t else "",
         })
     total = len(filtered)
     return {"total": total, "items": filtered[skip:skip + limit]}
@@ -586,17 +632,24 @@ async def get_object(name: str):
         raise HTTPException(status_code=404, detail="Objeto no encontrado")
     doc = await db.tags.find_one({"object_name": name})
     t = Tag.from_mongo(doc)
+    molds = await fetch_molds_map()
+    mold = molds.get(t.molde) if t and t.molde else None
     mark = name.split(' ')[0]
     return {
         "name": name,
         "mark": mark,
         "facade": FACADES.get(name),
         "dimensions": DIMS.get(name),
-        "status": t.status if t else None,
-        "observation": t.observation if t else "",
+        "molde": t.molde if t else None,
+        "tipo": mold.tipo if mold else None,
+        "color_molde": mold.color if mold else None,
+        "ancho": t.ancho if t else None,
+        "alto": t.alto if t else None,
+        "color": t.color if t else None,
+        "notas": t.notas if t else "",
+        "photo": t.photo if t else None,
         "created_at": t.created_at if t else "",
         "history": t.history if t else [],
-        "observations": t.observations if t else [],
     }
 
 
@@ -613,46 +666,50 @@ async def get_object_mesh(name: str):
 @api_router.get("/tags")
 async def get_tags():
     tags = await fetch_tags_map()
-    return {
-        name: {"status": t.status, "observation": t.observation}
-        for name, t in tags.items()
-    }
+    molds = await fetch_molds_map()
+    result = {}
+    for name, t in tags.items():
+        mold = molds.get(t.molde) if t.molde else None
+        result[name] = {"molde": t.molde, "color_molde": mold.color if mold else None}
+    return result
 
 
-@api_router.put("/tags")
-async def upsert_tag(payload: TagUpsert, _admin=Depends(require_admin)):
+async def upsert_tag_doc(payload: TagUpsert) -> dict:
     if payload.object_name not in NAME_SET:
         raise HTTPException(status_code=404, detail="Objeto no encontrado")
-    if payload.status is not None and payload.status not in VALID_STATUSES:
-        raise HTTPException(status_code=422, detail="Estado inválido")
-    obs = payload.observation.strip()
+    molde = (payload.molde or "").strip() or None
+    notas = payload.notas.strip()
     photo = (payload.photo or "").strip() or None
+    color = (payload.color or "").strip() or None
     existing = await db.tags.find_one({"object_name": payload.object_name})
     prev = Tag.from_mongo(existing) if existing else None
-    # delete only if clearing status, no new observation/photo and no observation history
-    if payload.status is None and not obs and not photo and not (prev and prev.observations):
+    if not molde and not notas and not photo and payload.ancho is None and payload.alto is None and not color:
         await db.tags.delete_one({"object_name": payload.object_name})
-        return {"object_name": payload.object_name, "status": None, "observation": "", "observations": []}
+        return {"object_name": payload.object_name, "molde": None, "ancho": None, "alto": None,
+                "color": None, "notas": "", "photo": None, "history": prev.history if prev else []}
     now = datetime.now(timezone.utc).isoformat()
     created_at = prev.created_at if prev and prev.created_at else now
     history = list(prev.history) if prev else []
-    if payload.status and (not prev or prev.status != payload.status):
-        history.append({"status": payload.status, "date": now})
-    observations = list(prev.observations) if prev else []
-    if (obs or photo) and (photo or not observations or observations[-1].get("text") != obs):
-        entry = {"text": obs, "date": now}
-        if photo:
-            entry["photo"] = photo
-        observations.append(entry)
-    latest_obs = observations[-1]["text"] if observations else ""
+    changed = not prev or (
+        prev.molde != molde or prev.ancho != payload.ancho or prev.alto != payload.alto
+        or prev.color != color or prev.notas != notas or prev.photo != photo
+    )
+    if changed:
+        history.append({
+            "molde": molde, "ancho": payload.ancho, "alto": payload.alto,
+            "color": color, "notas": notas, "photo": photo, "date": now,
+        })
     tag = Tag(
         object_name=payload.object_name,
-        status=payload.status,
-        observation=latest_obs,
+        molde=molde,
+        ancho=payload.ancho,
+        alto=payload.alto,
+        color=color,
+        notas=notas,
+        photo=photo,
         updated_at=now,
         created_at=created_at,
         history=history,
-        observations=observations,
     )
     await db.tags.update_one(
         {"object_name": payload.object_name},
@@ -661,152 +718,113 @@ async def upsert_tag(payload: TagUpsert, _admin=Depends(require_admin)):
     )
     return {
         "object_name": tag.object_name,
-        "status": tag.status,
-        "observation": tag.observation,
+        "molde": tag.molde,
+        "ancho": tag.ancho,
+        "alto": tag.alto,
+        "color": tag.color,
+        "notas": tag.notas,
+        "photo": tag.photo,
         "created_at": tag.created_at,
         "history": tag.history,
-        "observations": tag.observations,
     }
 
 
-@api_router.get("/stats")
-async def get_stats():
-    tags = await fetch_tags_map()
-    counts = {s: 0 for s in STATUS_ORDER}
-    con_obs = 0
-    tagged = 0
-    for name, t in tags.items():
-        if name not in FACADE_NAMES:
-            continue
-        if t.status in counts:
-            counts[t.status] += 1
-            tagged += 1
-        if t.observation:
-            con_obs += 1
-    total = len(FACADE_NAMES)
-    por_fachada = {d: {"total": 0, "etiquetados": 0} for d in ["norte", "sur", "este", "oeste"]}
-    for name in FACADE_NAMES:
-        d = FACADES.get(name)
-        if d not in por_fachada:
-            continue
-        por_fachada[d]["total"] += 1
-        t = tags.get(name)
-        if t and t.status in counts:
-            por_fachada[d]["etiquetados"] += 1
-    # weekly installed comparison (Mon-Sun, facade panels, from history events)
-    today = datetime.now(timezone.utc).date()
-    monday = today - timedelta(days=today.weekday())
-    cur_from, cur_to = monday.isoformat(), (monday + timedelta(days=6)).isoformat()
-    prev_from, prev_to = (monday - timedelta(days=7)).isoformat(), (monday - timedelta(days=1)).isoformat()
-    semana = {"actual": 0, "anterior": 0, "desde": cur_from, "hasta": cur_to}
-    for name, t in tags.items():
-        if name not in FACADE_NAMES or t.status != "instalado":
-            continue
-        inst_dates = [(ev.get("date") or "")[:10] for ev in t.history or [] if ev.get("status") == "instalado"]
-        if not inst_dates:
-            continue
-        d = max(inst_dates)
-        if cur_from <= d <= cur_to:
-            semana["actual"] += 1
-        elif prev_from <= d <= prev_to:
-            semana["anterior"] += 1
-    return {
-        "total": total,
-        "counts": counts,
-        "etiquetados": tagged,
-        "sin_estado": total - tagged,
-        "con_observaciones": con_obs,
-        "por_fachada": por_fachada,
-        "semana": semana,
-    }
+@api_router.put("/tags")
+async def upsert_tag(payload: TagUpsert, _admin=Depends(require_admin)):
+    return await upsert_tag_doc(payload)
 
 
-async def build_report(from_: str, to: str, status: str, facade: str = "all"):
-    if status != "all" and status not in VALID_STATUSES:
-        raise HTTPException(status_code=422, detail="Estado inválido")
+@api_router.put("/tags/bulk")
+async def bulk_upsert_tags(payload: BulkTagUpsert, _admin=Depends(require_admin)):
+    names = [n for n in payload.object_names if n in NAME_SET]
+    if not names:
+        raise HTTPException(status_code=422, detail="Sin piezas válidas seleccionadas")
+    updated = []
+    for name in names:
+        item = TagUpsert(
+            object_name=name, molde=payload.molde, ancho=payload.ancho, alto=payload.alto,
+            color=payload.color, notas=payload.notas, photo=payload.photo,
+        )
+        await upsert_tag_doc(item)
+        updated.append(name)
+    return {"updated": len(updated), "object_names": updated}
+
+
+@api_router.delete("/tags")
+async def delete_tag(object_name: str, _admin=Depends(require_admin)):
+    if object_name not in NAME_SET:
+        raise HTTPException(status_code=404, detail="Objeto no encontrado")
+    doc = await db.tags.find_one({"object_name": object_name})
+    if doc and doc.get("photo"):
+        await db.files.update_one({"storage_path": doc["photo"]}, {"$set": {"is_deleted": True}})
+    await db.tags.delete_one({"object_name": object_name})
+    return {"deleted": True, "object_name": object_name}
+
+
+async def build_molds_report(facade: str = "all"):
     if facade != "all" and facade not in VALID_FACADES:
         raise HTTPException(status_code=422, detail="Fachada inválida")
     tags = await fetch_tags_map()
-    counts = {s: 0 for s in STATUS_ORDER}
+    molds = await fetch_molds_map()
     items = []
-    for name, t in tags.items():
-        if facade != "all" and FACADES.get(name) != facade:
+    resumen = {}
+    con_molde = 0
+    for name in FACADE_NAMES:
+        fac = FACADES.get(name)
+        if facade != "all" and fac != facade:
             continue
-        for ev in t.history or []:
-            ev_status = ev.get("status")
-            d = (ev.get("date") or "")[:10]
-            if not ev_status or not d:
-                continue
-            if from_ and d < from_:
-                continue
-            if to and d > to:
-                continue
-            if status != "all" and ev_status != status:
-                continue
-            items.append({
-                "name": name,
-                "mark": name.split(' ')[0],
-                "facade": FACADES.get(name),
-                "status": ev_status,
-                "date": ev.get("date"),
-                "observation": t.observation,
-            })
-            if ev_status in counts:
-                counts[ev_status] += 1
-    items.sort(key=lambda x: x["date"] or "", reverse=True)
-    # Photos attached to observations within the same facade + date range
-    photos = []
-    for name, t in tags.items():
-        if facade != "all" and FACADES.get(name) != facade:
-            continue
-        for ob in t.observations or []:
-            p = ob.get("photo")
-            if not p:
-                continue
-            d = (ob.get("date") or "")[:10]
-            if from_ and d < from_:
-                continue
-            if to and d > to:
-                continue
-            photos.append({
-                "name": name,
-                "facade": FACADES.get(name),
-                "photo": p,
-                "text": ob.get("text", ""),
-                "date": ob.get("date"),
-            })
-    photos.sort(key=lambda x: x["date"] or "", reverse=True)
-    return {"total": len(items), "counts": counts, "items": items, "photos": photos}
+        t = tags.get(name)
+        molde = t.molde if t else None
+        mold = molds.get(molde) if molde else None
+        if molde:
+            con_molde += 1
+            if molde not in resumen:
+                resumen[molde] = {"molde": molde, "tipo": mold.tipo if mold else None,
+                                   "color": mold.color if mold else None, "count": 0}
+            resumen[molde]["count"] += 1
+        items.append({
+            "name": name,
+            "mark": name.split(' ')[0],
+            "facade": fac,
+            "molde": molde,
+            "tipo": mold.tipo if mold else None,
+            "color": mold.color if mold else None,
+            "ancho": t.ancho if t else None,
+            "alto": t.alto if t else None,
+            "color_pintura": t.color if t else None,
+        })
+    items.sort(key=lambda x: (x["facade"] or "zzz", x["mark"]))
+    total = len(items)
+    return {
+        "total": total,
+        "con_molde": con_molde,
+        "sin_molde": total - con_molde,
+        "items": items,
+        "resumen": sorted(resumen.values(), key=lambda r: -r["count"]),
+    }
 
 
-@api_router.get("/report")
-async def get_report(
-    from_: str = Query(default="", alias="from"),
-    to: str = "",
-    status: str = "all",
-    facade: str = "all",
-):
-    """Report of status-change events (from tag history) within a date range.
-    from/to: YYYY-MM-DD (inclusive). status: 'all' or a status key. facade: 'all'|norte|sur|este|oeste."""
-    return await build_report(from_, to, status, facade)
+@api_router.get("/report/molds")
+async def get_molds_report(facade: str = "all"):
+    """Report of panels and their assigned mold, grouped/sorted by facade."""
+    return await build_molds_report(facade)
 
 
-def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") -> bytes:
+def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
     from io import BytesIO
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors as rl_colors
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.platypus import Image as RLImage
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.styles import getSampleStyleSheet
 
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte BIMTracker",
+    doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte de Moldes BIMTracker",
                             leftMargin=15 * mm, rightMargin=15 * mm,
                             topMargin=15 * mm, bottomMargin=15 * mm)
     styles = getSampleStyleSheet()
     elems = []
-    # Corporate letterhead with the 3 logos
     logo_defs = [
         ("logo_fiberkret.png", 1600 / 533),
         ("logo_entrepisos.png", 921 / 371),
@@ -820,31 +838,34 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
         letterhead.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
         elems.append(letterhead)
         elems.append(Spacer(1, 5 * mm))
-    period = f"Período: {from_} a {to} &nbsp;·&nbsp; Etiqueta: {STATUS_LABELS.get(status, status)}"
-    if facade != "all":
-        period += f" &nbsp;·&nbsp; Fachada: {FACADE_LABELS.get(facade, facade)}"
+    period = f"Fachada: {FACADE_LABELS.get(facade, facade) if facade != 'all' else 'Todas'}"
     elems += [
-        Paragraph("Reporte BIMTracker — Fachada", styles["Title"]),
+        Paragraph("Reporte de Moldes — Paneles de Fachada", styles["Title"]),
         Paragraph(period, styles["Normal"]),
         Spacer(1, 4 * mm),
     ]
-    summary = "   ·   ".join(
-        f"{STATUS_LABELS[k]}: {v}" for k, v in data["counts"].items() if v
-    )
-    elems.append(Paragraph(f"Total de movimientos: {data['total']}", styles["Heading3"]))
-    if summary:
+    elems.append(Paragraph(
+        f"Total paneles: {data['total']} &nbsp;·&nbsp; Con molde: {data['con_molde']} "
+        f"&nbsp;·&nbsp; Sin molde: {data['sin_molde']}", styles["Heading3"]))
+    if data["resumen"]:
+        summary = "   ·   ".join(
+            f"{r['molde']} ({TIPO_MOLDE_LABELS.get(r['tipo'], r['tipo'] or '—')}): {r['count']}"
+            for r in data["resumen"]
+        )
         elems.append(Paragraph(summary, styles["Normal"]))
     elems.append(Spacer(1, 5 * mm))
-    rows = [["Pieza", "Estado", "Fachada", "Fecha", "Observación"]]
+    rows = [["Pieza", "Fachada", "Molde", "Tipo", "Medidas", "Color"]]
     for it in data["items"]:
+        medidas = f"{it['ancho']} × {it['alto']}" if it.get("ancho") and it.get("alto") else "—"
         rows.append([
             Paragraph(display_name(it["name"]), styles["BodyText"]),
-            STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
-            (it["date"] or "")[:10],
-            Paragraph(it["observation"] or "", styles["BodyText"]),
+            it["molde"] or "—",
+            TIPO_MOLDE_LABELS.get(it["tipo"], "—") if it["tipo"] else "—",
+            medidas,
+            it.get("color_pintura") or "—",
         ])
-    table = Table(rows, colWidths=[52 * mm, 22 * mm, 20 * mm, 22 * mm, 54 * mm], repeatRows=1)
+    table = Table(rows, colWidths=[46 * mm, 20 * mm, 28 * mm, 28 * mm, 24 * mm, 24 * mm], repeatRows=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), rl_colors.HexColor("#1C1C1E")),
         ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
@@ -854,66 +875,27 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     elems.append(table)
-
-    # Fotos de obra adjuntas a las observaciones del período
-    photos = data.get("photos") or []
-    if photos:
-        cap_style = ParagraphStyle("cap", parent=styles["BodyText"], fontSize=7, leading=8, alignment=1)
-        cells = []
-        for ph in photos[:60]:
-            try:
-                raw, _ = storage_get_object(ph["photo"])
-                img = RLImage(BytesIO(raw), width=48 * mm, height=48 * mm, kind="proportional")
-            except Exception as e:
-                logging.warning(f"Report photo skipped ({ph['photo']}): {e}")
-                continue
-            cap = display_name(ph["name"]) + " · " + (ph["date"] or "")[:10]
-            if ph.get("facade") and FACADE_LABELS.get(ph["facade"]):
-                cap = FACADE_LABELS[ph["facade"]] + " — " + cap
-            inner_rows = [[img], [Paragraph(cap, cap_style)]]
-            if ph.get("text"):
-                inner_rows.append([Paragraph(ph["text"], cap_style)])
-            inner = Table(inner_rows, colWidths=[56 * mm])
-            inner.setStyle(TableStyle([
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("TOPPADDING", (0, 0), (-1, -1), 1),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-            ]))
-            cells.append(inner)
-        if cells:
-            elems.append(Spacer(1, 6 * mm))
-            elems.append(Paragraph(f"Fotos de obra ({len(cells)})", styles["Heading3"]))
-            elems.append(Spacer(1, 3 * mm))
-            grid = [cells[i:i + 3] for i in range(0, len(cells), 3)]
-            for r in grid:
-                while len(r) < 3:
-                    r.append("")
-            gt = Table(grid, colWidths=[60 * mm] * 3)
-            gt.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
-            elems.append(gt)
-
     doc.build(elems)
     return buf.getvalue()
 
 
-def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all") -> bytes:
+def make_molds_xlsx(data: dict, facade: str = "all") -> bytes:
     from io import BytesIO
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Reporte"
-    ws.append(["Reporte BIMTracker — Fachada"])
+    ws.title = "Moldes"
+    ws.append(["Reporte de Moldes — Paneles de Fachada"])
     ws["A1"].font = Font(bold=True, size=14)
-    row2 = [f"Período: {from_} a {to}", f"Etiqueta: {STATUS_LABELS.get(status, status)}"]
-    if facade != "all":
-        row2.append(f"Fachada: {FACADE_LABELS.get(facade, facade)}")
-    ws.append(row2)
-    ws.append([f"Total de movimientos: {data['total']}"])
-    ws.append([f"{STATUS_LABELS[k]}: {v}" for k, v in data["counts"].items() if v])
+    ws.append([f"Fachada: {FACADE_LABELS.get(facade, facade) if facade != 'all' else 'Todas'}"])
+    ws.append([f"Total paneles: {data['total']}", f"Con molde: {data['con_molde']}", f"Sin molde: {data['sin_molde']}"])
+    if data["resumen"]:
+        ws.append([f"{r['molde']} ({TIPO_MOLDE_LABELS.get(r['tipo'], r['tipo'] or '—')})" for r in data["resumen"]])
+        ws.append([str(r["count"]) for r in data["resumen"]])
     ws.append([])
-    header = ["Pieza", "Estado", "Fachada", "Fecha", "Observación"]
+    header = ["Pieza", "Fachada", "Molde", "Tipo", "Ancho", "Alto", "Color"]
     ws.append(header)
     hrow = ws.max_row
     for col in range(1, len(header) + 1):
@@ -923,36 +905,32 @@ def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all")
     for it in data["items"]:
         ws.append([
             display_name(it["name"]),
-            STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
-            (it["date"] or "")[:10],
-            it["observation"] or "",
+            it["molde"] or "—",
+            TIPO_MOLDE_LABELS.get(it["tipo"], "—") if it["tipo"] else "—",
+            it.get("ancho") or "",
+            it.get("alto") or "",
+            it.get("color_pintura") or "",
         ])
-    for col, width in zip("ABCDE", [40, 16, 12, 14, 50]):
+    for col, width in zip("ABCDEFG", [40, 12, 20, 16, 10, 10, 16]):
         ws.column_dimensions[col].width = width
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-@api_router.get("/report/export")
-async def export_report(
-    format: str = "xlsx",
-    from_: str = Query(default="", alias="from"),
-    to: str = "",
-    status: str = "all",
-    facade: str = "all",
-):
+@api_router.get("/report/molds/export")
+async def export_molds_report(format: str = "xlsx", facade: str = "all"):
     if format not in ("pdf", "xlsx"):
         raise HTTPException(status_code=422, detail="Formato inválido (pdf|xlsx)")
-    data = await build_report(from_, to, status, facade)
+    data = await build_molds_report(facade)
     if format == "pdf":
-        content = make_pdf(data, from_, to, status, facade)
+        content = make_molds_pdf(data, facade)
         media = "application/pdf"
     else:
-        content = make_xlsx(data, from_, to, status, facade)
+        content = make_molds_xlsx(data, facade)
         media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    filename = f"reporte_{from_}_{to}.{format}"
+    filename = f"reporte_moldes_{facade}.{format}"
     return Response(
         content=content,
         media_type=media,

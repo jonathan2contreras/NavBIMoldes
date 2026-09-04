@@ -5,7 +5,7 @@ import { api, fileUrl } from "../lib/api";
 import { Chip } from "../components/Chip";
 import { TagSheet } from "../components/TagSheet";
 import { useRole } from "../context/RoleContext";
-import { FACADE_FILTERS, FACADE_LABELS, displayName, formatDate, statusMeta } from "../lib/theme";
+import { FACADE_FILTERS, FACADE_LABELS, NO_MOLDE_COLOR, displayName, formatDate, tipoLabel } from "../lib/theme";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -152,8 +152,8 @@ export default function PhotosPage() {
       const up = await api.uploadPhoto(newFile);
       await api.saveTag({
         object_name: selectedObj.name,
-        status: selectedObj.status ?? null,
-        observation: note.trim(),
+        molde: selectedObj.molde ?? null,
+        notas: note.trim(),
         photo: up.path,
       });
       closeAdd();
@@ -255,7 +255,6 @@ export default function PhotosPage() {
         ) : (
           <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3 lg:grid-cols-4" data-testid="photos-grid">
             {data.items.map((it, i) => {
-              const meta = statusMeta(it.status);
               return (
                 <div
                   key={`${it.photo}-${i}`}
@@ -292,9 +291,9 @@ export default function PhotosPage() {
                       {!!it.facade && FACADE_LABELS[it.facade] && (
                         <span className="font-semibold text-[#007AFF]">{FACADE_LABELS[it.facade]}</span>
                       )}
-                      {!!meta && (
-                        <span className="font-semibold" style={{ color: meta.accent }}>
-                          · {meta.label}
+                      {!!it.molde && (
+                        <span className="font-semibold" style={{ color: it.color_molde || NO_MOLDE_COLOR }}>
+                          · {it.molde} ({tipoLabel(it.tipo)})
                         </span>
                       )}
                     </p>
@@ -460,31 +459,28 @@ export default function PhotosPage() {
                         {searching ? "Buscando..." : "Escribe para buscar una pieza"}
                       </p>
                     ) : (
-                      results.map((o, i) => {
-                        const meta = statusMeta(o.status);
-                        return (
-                          <button
-                            key={o.name}
-                            data-testid={`photos-add-result-${i}`}
-                            onClick={() => setSelectedObj(o)}
-                            className="flex w-full items-center gap-2 border-b border-[#F2F2F7] px-3 py-2.5 text-left last:border-b-0 hover:bg-[#F2F2F7]"
-                          >
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: meta ? meta.accent : "#B4BAC6" }}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[13px] font-semibold text-[#111111]">
-                                {displayName(o.name)}
-                              </p>
-                              <p className="text-[11px] text-[#8E8E93]">
-                                {o.facade && FACADE_LABELS[o.facade] ? `${FACADE_LABELS[o.facade]}` : "Sin fachada"}
-                                {meta ? ` · ${meta.label}` : ""}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })
+                      results.map((o, i) => (
+                        <button
+                          key={o.name}
+                          data-testid={`photos-add-result-${i}`}
+                          onClick={() => setSelectedObj(o)}
+                          className="flex w-full items-center gap-2 border-b border-[#F2F2F7] px-3 py-2.5 text-left last:border-b-0 hover:bg-[#F2F2F7]"
+                        >
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: o.color_molde || NO_MOLDE_COLOR }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] font-semibold text-[#111111]">
+                              {displayName(o.name)}
+                            </p>
+                            <p className="text-[11px] text-[#8E8E93]">
+                              {o.facade && FACADE_LABELS[o.facade] ? `${FACADE_LABELS[o.facade]}` : "Sin fachada"}
+                              {o.molde ? ` · ${o.molde}` : ""}
+                            </p>
+                          </div>
+                        </button>
+                      ))
                     )}
                   </div>
                 </>

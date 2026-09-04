@@ -1,12 +1,15 @@
-export const STATUSES = [
-  { key: "fabricado", label: "Fabricado", color: "#007AFF", accent: "#007AFF", textOn: "#FFFFFF" },
-  { key: "enviado", label: "Enviado", color: "#FF9500", accent: "#FF9500", textOn: "#FFFFFF" },
-  { key: "instalado", label: "Instalado", color: "#34C759", accent: "#34C759", textOn: "#FFFFFF" },
-  { key: "entregable", label: "Entregable", color: "#F3EAD0", accent: "#8A7A50", textOn: "#111111" },
-  { key: "observaciones", label: "Observaciones", color: "#FFD60A", accent: "#D19E00", textOn: "#111111" },
+export const TIPOS_MOLDE = [
+  { key: "curvo", label: "Curvo" },
+  { key: "liso", label: "Liso" },
+  { key: "borde_losa", label: "Borde de losa" },
+  { key: "cubre_viga", label: "Cubre viga" },
 ];
 
-export const NO_STATUS_COLOR = "#B4BAC6";
+export const NO_MOLDE_COLOR = "#B4BAC6";
+
+export function tipoLabel(tipo) {
+  return TIPOS_MOLDE.find((t) => t.key === tipo)?.label || tipo || "";
+}
 
 export const FACADE_LABELS = { norte: "Norte", sur: "Sur", este: "Este", oeste: "Oeste" };
 
@@ -29,10 +32,6 @@ export function displayName(name) {
   const parts = name.split(" ");
   if (parts.length >= 2 && parts[0] === parts[1]) parts.splice(1, 1);
   return parts.join(" ");
-}
-
-export function statusMeta(status) {
-  return STATUSES.find((s) => s.key === status) || null;
 }
 
 export function formatDate(iso) {

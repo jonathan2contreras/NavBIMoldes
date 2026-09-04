@@ -1,0 +1,34 @@
+{
+  "summary": "Full pass on the mold-based tagging pivot. Backend: 21/21 pytest cases green covering admin JWT, molds catalog CRUD, tag upsert/history/bulk/delete, objects filter (molde/none), molds report + PDF/XLSX export, and photos listing. Frontend: verified new nav (4 tabs, no Progreso, logout icon), Reports page (facade chips, summary, PDF/Excel export buttons), Objects page (mold filter chips, facade chips, bulk-tag toggle admin-only), TagSheet full flow as admin (create new mold via inline form -> save tag with ancho/alto/color/notas/history), filter by newly created mold isolates 1 row correctly, BulkTagModal opens with 3 selected pieces and shows 'Aplicar a 3 piezas'. Viewer role correctly hides bulk toggle, MoldPicker, save/delete buttons and disables inputs, shows readonly note. 3D viewer legend shows mold names (Todas/UI_MOLD_.../Sin molde) instead of statuses. Login screen has 0 corporate logos as expected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BulkTagModal", "issues": ["Modal does not close on Escape key (only via X button). Minor UX polish, not blocking."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_mold_system.py",
+    "/app/test_reports/pytest/mold_system.xml"
+  ],
+  "action_items": [
+    "Optional: allow Escape key to close BulkTagModal for keyboard-a11y parity with TagSheet."
+  ],
+  "critical_code_review_comments": [
+    "Migration `db.tags.delete_many({status: {$exists: true}})` runs on every startup — cheap and idempotent, fine.",
+    "`delete_mold` does not clear the molde reference from existing tag docs; orphan tags will render as gray/'Sin molde' via lookup (safe, but consider cascading unset on tag.molde for cleaner state and history).",
+    "`/api/upload` is admin-only but `/api/files/{path}` is public with 1-day cache — fine for obra photos.",
+    "`build_molds_report` iterates FACADE_NAMES only; non-facade objects with tags are (intentionally) excluded from report — matches spec (paneles de fachada).",
+    "Consider persisting molds and facades data with a schema version to make future migrations explicit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_mold_system.py (new)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "100% of listed flows"},
+  "test_credentials": "admin: password admin2026 (POST /api/admin/verify). viewer: click 'Usuario' button (no password).",
+  "seed_data_creation": "Created and later deleted molds TEST_M_MOLD_A, TEST_M_MOLD_B (pytest) and UI_MOLD_* (browser). All cleaned up.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suite lives at /app/backend/tests/test_mold_system.py — run with `pytest backend/tests/test_mold_system.py -o addopts=\"\"` (project pytest.ini enables xdist which can race the module-scoped mold fixture; use serial). All new endpoints /api/molds*, /api/tags/bulk, /api/tags DELETE, /api/report/molds[/export] validated. UI has data-testid coverage on every interactive element used above; mold filter chip test id is `filter-chip-<mold-name>`."
+}

@@ -4,13 +4,7 @@ import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
-import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
-
-const ISO_FILTERS = [
-  { key: "all", label: "Todas" },
-  ...STATUSES.map((s) => ({ key: s.key, label: s.label, color: s.color, accent: s.accent, textOn: s.textOn })),
-  { key: "none", label: "Sin estado", color: NO_STATUS_COLOR, accent: NO_STATUS_COLOR, textOn: "#FFFFFF" },
-];
+import { LOGOS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
 export default function ViewerPage() {
   const iframeRef = useRef(null);
@@ -22,11 +16,25 @@ export default function ViewerPage() {
   const [isoFilter, setIsoFilter] = useState("all");
   const [focusedName, setFocusedName] = useState(null);
   const [sheetObj, setSheetObj] = useState(null);
+  const [molds, setMolds] = useState([]);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
   const focus = searchParams.get("focus");
   const t = searchParams.get("t");
+
+  const ISO_FILTERS = [
+    { key: "all", label: "Todas" },
+    ...molds.map((m) => ({ key: m.name, label: m.name, color: m.color, accent: m.color, textOn: "#FFFFFF" })),
+    { key: "none", label: "Sin molde", color: NO_MOLDE_COLOR, accent: NO_MOLDE_COLOR, textOn: "#FFFFFF" },
+  ];
+
+  useEffect(() => {
+    api
+      .getMolds()
+      .then((r) => setMolds(r.items || []))
+      .catch(() => {});
+  }, []);
 
   const sendCmd = useCallback((cmd, args = []) => {
     const payload = JSON.stringify({ __viewerCmd: true, cmd, args });
@@ -46,7 +54,7 @@ export default function ViewerPage() {
       const tags = await api.getTags();
       const map = {};
       for (const [name, tg] of Object.entries(tags)) {
-        if (tg.status) map[name] = tg.status;
+        if (tg.molde) map[name] = { molde: tg.molde, color: tg.color_molde };
       }
       sendCmd("applyTags", [map]);
     } catch {}
@@ -100,7 +108,7 @@ export default function ViewerPage() {
   };
 
   const handleSaved = useCallback(
-    (obj) => sendCmd("setTag", [obj.name, obj.status]),
+    (obj) => sendCmd("setTag", [obj.name, obj.molde ? { molde: obj.molde, color: obj.color_molde } : null]),
     [sendCmd]
   );
 
@@ -135,7 +143,7 @@ export default function ViewerPage() {
 
       <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
-          <div className="flex gap-2 overflow-x-auto pb-0.5" data-testid="status-legend">
+          <div className="flex gap-2 overflow-x-auto pb-0.5" data-testid="mold-legend">
             {ISO_FILTERS.map((f) => {
               const selected = isoFilter === f.key;
               return (
@@ -148,7 +156,7 @@ export default function ViewerPage() {
                     selected
                       ? {
                           backgroundColor: f.color || "#1C1C1E",
-                          borderColor: f.key === "entregable" ? "#C7C7CC" : f.color || "#1C1C1E",
+                          borderColor: f.color || "#1C1C1E",
                           color: f.textOn || "#FFFFFF",
                         }
                       : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }
