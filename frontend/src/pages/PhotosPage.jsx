@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Camera, Compass, Loader2, Trash2, X } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, Camera, Check, Compass, ImagePlus, Loader2, Search, Trash2, X } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
 import { Chip } from "../components/Chip";
@@ -20,6 +20,46 @@ export default function PhotosPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  const newFileInputRef = useRef(null);
+  const [adding, setAdding] = useState(false);
+  const [newFile, setNewFile] = useState(null);
+  const [newPreview, setNewPreview] = useState(null);
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedObj, setSelectedObj] = useState(null);
+  const [note, setNote] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const handleNewPick = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewFile(file);
+    setNewPreview(URL.createObjectURL(file));
+    setSelectedObj(null);
+    setNote("");
+    setSearch("");
+    setResults([]);
+    setUploadError("");
+    setAdding(true);
+  }, []);
+
+  const closeAdd = useCallback(() => {
+    setAdding(false);
+    setNewFile(null);
+    setNewPreview((p) => {
+      if (p) URL.revokeObjectURL(p);
+      return null;
+    });
+    setSearch("");
+    setResults([]);
+    setSelectedObj(null);
+    setNote("");
+    setUploadError("");
+    if (newFileInputRef.current) newFileInputRef.current.value = "";
+  }, []);
 
   const openLightbox = (it) => {
     setLightbox(it);
@@ -69,14 +109,72 @@ export default function PhotosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facade]);
 
+  useEffect(() => {
+    if (!adding) return undefined;
+    const q = search.trim();
+    const h = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const r = await api.getObjects({ search: q, limit: 20 });
+        setResults(r.items || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(h);
+  }, [search, adding]);
+
+  const handleUpload = useCallback(async () => {
+    if (!newFile || !selectedObj) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const up = await api.uploadPhoto(newFile);
+      await api.saveTag({
+        object_name: selectedObj.name,
+        status: selectedObj.status ?? null,
+        observation: note.trim(),
+        photo: up.path,
+      });
+      closeAdd();
+      fetchPhotos(facade, fromText, toText);
+    } catch {
+      setUploadError("No se pudo subir la foto. Inténtalo de nuevo.");
+      setUploading(false);
+    }
+  }, [newFile, selectedObj, note, closeAdd, fetchPhotos, facade, fromText, toText]);
+
   return (
     <div className="h-full overflow-y-auto bg-white" data-testid="photos-screen">
       <div className="mx-auto w-full max-w-4xl px-4 pb-8 pt-4">
         <div className="flex items-baseline justify-between pb-2">
           <h1 className="text-2xl font-extrabold text-[#111111]">Fotos de obra</h1>
-          <span className="text-xs font-medium text-[#8E8E93]" data-testid="photos-total-count">
-            {loading ? "Cargando..." : `${(data?.total || 0).toLocaleString("es-ES")} fotos`}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-[#8E8E93]" data-testid="photos-total-count">
+              {loading ? "Cargando..." : `${(data?.total || 0).toLocaleString("es-ES")} fotos`}
+            </span>
+            {isAdmin && (
+              <>
+                <input
+                  ref={newFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleNewPick}
+                  data-testid="photos-add-file-input"
+                />
+                <button
+                  data-testid="photos-add-button"
+                  onClick={() => newFileInputRef.current?.click()}
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3.5 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+                >
+                  <ImagePlus size={15} /> Añadir foto
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2 overflow-x-auto py-2">
@@ -256,6 +354,141 @@ export default function PhotosPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {adding && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
+          onClick={() => !uploading && closeAdd()}
+          data-testid="photos-add-modal"
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#E5E5EA] px-5 py-4">
+              <p className="text-base font-bold text-[#111111]">Añadir foto de obra</p>
+              <button
+                data-testid="photos-add-close"
+                onClick={() => !uploading && closeAdd()}
+                className="rounded-full p-1.5 hover:bg-[#F2F2F7]"
+              >
+                <X size={18} className="text-[#8E8E93]" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {newPreview && (
+                <img
+                  src={newPreview}
+                  alt="Vista previa"
+                  className="mb-4 max-h-56 w-full rounded-xl border border-[#E5E5EA] object-contain"
+                  data-testid="photos-add-preview"
+                />
+              )}
+
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#636366]">Pieza / panel</p>
+              {selectedObj ? (
+                <div
+                  className="flex items-center gap-2 rounded-xl border-[1.5px] border-[#34C759] bg-[#E8F8EE] px-3 py-2.5"
+                  data-testid="photos-add-selected"
+                >
+                  <Check size={16} className="shrink-0 text-[#34C759]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold text-[#111111]">{displayName(selectedObj.name)}</p>
+                    {!!selectedObj.facade && FACADE_LABELS[selectedObj.facade] && (
+                      <p className="text-[11px] font-semibold text-[#007AFF]">
+                        Fachada {FACADE_LABELS[selectedObj.facade]}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    data-testid="photos-add-change-piece"
+                    onClick={() => setSelectedObj(null)}
+                    className="rounded-full p-1.5 hover:bg-white"
+                  >
+                    <X size={15} className="text-[#8E8E93]" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 rounded-xl bg-[#F2F2F7] px-3">
+                    <Search size={15} className="shrink-0 text-[#8E8E93]" />
+                    <input
+                      data-testid="photos-add-search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Buscar pieza por nombre..."
+                      autoFocus
+                      className="h-11 flex-1 bg-transparent text-[13px] text-[#111111] outline-none placeholder:text-[#8E8E93]"
+                    />
+                    {searching && <Loader2 size={15} className="animate-spin text-[#8E8E93]" />}
+                  </div>
+                  <div className="mt-2 max-h-52 overflow-y-auto rounded-xl border border-[#E5E5EA]">
+                    {results.length === 0 ? (
+                      <p className="px-3 py-4 text-center text-xs text-[#8E8E93]">
+                        {searching ? "Buscando..." : "Escribe para buscar una pieza"}
+                      </p>
+                    ) : (
+                      results.map((o, i) => {
+                        const meta = statusMeta(o.status);
+                        return (
+                          <button
+                            key={o.name}
+                            data-testid={`photos-add-result-${i}`}
+                            onClick={() => setSelectedObj(o)}
+                            className="flex w-full items-center gap-2 border-b border-[#F2F2F7] px-3 py-2.5 text-left last:border-b-0 hover:bg-[#F2F2F7]"
+                          >
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: meta ? meta.accent : "#B4BAC6" }}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[13px] font-semibold text-[#111111]">
+                                {displayName(o.name)}
+                              </p>
+                              <p className="text-[11px] text-[#8E8E93]">
+                                {o.facade && FACADE_LABELS[o.facade] ? `${FACADE_LABELS[o.facade]}` : "Sin fachada"}
+                                {meta ? ` · ${meta.label}` : ""}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+
+              <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Nota (opcional)</p>
+              <textarea
+                data-testid="photos-add-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Añadir una nota..."
+                className="min-h-[70px] w-full resize-y rounded-xl bg-[#F2F2F7] px-3 py-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
+              />
+
+              {!!uploadError && (
+                <p className="mt-2 text-[13px] text-[#FF3B30]" data-testid="photos-add-error">
+                  {uploadError}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-[#E5E5EA] p-4">
+              <button
+                data-testid="photos-add-save"
+                onClick={handleUpload}
+                disabled={!selectedObj || uploading}
+                className="flex h-12 w-full items-center justify-center gap-1.5 rounded-xl bg-[#1C1C1E] text-base font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {uploading ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+                {uploading ? "Subiendo..." : "Guardar foto"}
+              </button>
+            </div>
           </div>
         </div>
       )}
