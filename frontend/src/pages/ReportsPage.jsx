@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Compass, FileText, Grid3X3, Layers, Loader2 } from "lucide-react";
+import { Compass, FileText, Grid3X3, Layers, Loader2, Shapes } from "lucide-react";
 
 import { api, BACKEND_URL } from "../lib/api";
 import { Chip } from "../components/Chip";
@@ -7,16 +7,20 @@ import { FACADE_FILTERS, FACADE_LABELS, NO_MOLDE_COLOR, displayName, tipoLabel }
 
 export default function ReportsPage() {
   const [facade, setFacade] = useState("all");
+  const [molde, setMolde] = useState("all");
+  const [tipo, setTipo] = useState("all");
+  const [molds, setMolds] = useState([]);
+  const [tipos, setTipos] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState("");
 
-  const fetchReport = useCallback(async (fac) => {
+  const fetchReport = useCallback(async (fac, mol, tip) => {
     setLoading(true);
     setError("");
     try {
-      setData(await api.getMoldsReport(fac));
+      setData(await api.getMoldsReport(fac, mol, tip));
     } catch {
       setError("Error al generar el reporte.");
       setData(null);
@@ -26,12 +30,26 @@ export default function ReportsPage() {
   }, []);
 
   useEffect(() => {
-    fetchReport(facade);
-  }, [facade, fetchReport]);
+    (async () => {
+      try {
+        const [m, t] = await Promise.all([api.getMolds(), api.getTipos()]);
+        setMolds(m.items || []);
+        setTipos(t.items || []);
+      } catch {
+        // filters just render with base options
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    fetchReport(facade, molde, tipo);
+  }, [facade, molde, tipo, fetchReport]);
 
   const exportReport = useCallback(
     (format) => {
-      const url = `${BACKEND_URL}/api/report/molds/export?format=${format}&facade=${facade}`;
+      const url = `${BACKEND_URL}/api/report/molds/export?format=${format}&facade=${facade}&molde=${encodeURIComponent(
+        molde
+      )}&tipo=${encodeURIComponent(tipo)}`;
       setExporting(format);
       const a = document.createElement("a");
       a.href = url;
@@ -41,7 +59,7 @@ export default function ReportsPage() {
       a.remove();
       setTimeout(() => setExporting(""), 800);
     },
-    [facade]
+    [facade, molde, tipo]
   );
 
   return (
@@ -62,6 +80,47 @@ export default function ReportsPage() {
               onClick={() => setFacade(f.key)}
             />
           ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2 pb-2">
+          <div className="flex min-w-[160px] flex-1 flex-col gap-1">
+            <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-[#636366]">
+              <Layers size={12} /> Molde
+            </label>
+            <select
+              data-testid="report-filter-molde"
+              value={molde}
+              onChange={(e) => setMolde(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E5EA] bg-white px-3 text-sm font-semibold text-[#111111] outline-none"
+            >
+              <option value="all">Todos los moldes</option>
+              <option value="__none__">Sin molde</option>
+              {molds.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex min-w-[160px] flex-1 flex-col gap-1">
+            <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-[#636366]">
+              <Shapes size={12} /> Tipo
+            </label>
+            <select
+              data-testid="report-filter-tipo"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+              className="h-10 rounded-lg border border-[#E5E5EA] bg-white px-3 text-sm font-semibold text-[#111111] outline-none"
+            >
+              <option value="all">Todos los tipos</option>
+              <option value="__none__">Sin tipo</option>
+              {tipos.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {!!error && (

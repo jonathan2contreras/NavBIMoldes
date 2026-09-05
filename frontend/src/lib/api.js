@@ -59,7 +59,8 @@ export const api = {
   renameTipo: (name, newName) =>
     req(`/tipos/${encodeURIComponent(name)}`, { method: "PUT", body: JSON.stringify({ name: newName }) }),
   deleteTipo: (name) => req(`/tipos/${encodeURIComponent(name)}`, { method: "DELETE" }),
-  getMoldsReport: (facade) => req(`/report/molds?facade=${facade || "all"}`),
+  getMoldsReport: (facade, molde, tipo) =>
+    req(`/report/molds?facade=${facade || "all"}&molde=${encodeURIComponent(molde || "all")}&tipo=${encodeURIComponent(tipo || "all")}`),
   getPhotos: (p) =>
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   deletePhoto: (objectName, photo) =>

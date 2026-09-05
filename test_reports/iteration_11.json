@@ -1,0 +1,23 @@
+{
+  "summary": "Iter 11 - Tested (a) auto-create tipo from mold form and (b) molde+tipo filters on Reportes screen + exports. Backend 4/4 pytest passed (admin verify, auto-register tipo on POST /api/molds, /api/report/molds filters by molde/tipo/__none__, /api/report/molds/export accepts filters and returns valid PDF/XLSX). Frontend Playwright: admin login OK; created QA-UI-M01 with a NEW tipo 'QATipoUI11' via mold-form-tipo datalist input - mold card created AND tipo chip auto-appeared in Tipos catalog AND appeared in datalist options. Created a second mold (QA-UI-M01-B) selecting the existing tipo - success. On Reportes: report-filter-molde and report-filter-tipo dropdowns present and populated (QA_MOLD & QA_TIPO shown as options); selecting 'Sin molde' updated summary to '0 con molde'; selecting QA tipo showed 'Sin paneles' empty state (no panels tagged, expected); with molde+tipo filters set, Export PDF and Export Excel triggered downloads whose URLs contained both molde=QA-UI-M01 and tipo=QATipoUI11 query params - confirmed exports respect active filters. Clean up done via API (both molds + tipo deleted).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_molds_tipo_filters.py",
+    "/app/test_reports/pytest/iter11_filters.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ReportsPage.exportReport builds URL by string concatenation with encodeURIComponent only on molde/tipo but not on facade. Facade is currently constrained to known keys so safe, but consistent encoding would be safer.",
+    "save_mold auto-registers tipo unconditionally in db.tipos; if a user edits a mold and re-types the tipo with different casing/whitespace, a duplicate-like tipo could be created. Consider normalizing/case-insensitive match before insert.",
+    "MoldsPage still ~430 lines - extraction of MoldForm to its own file recommended (repeat note from iter10)."
+  ],
+  "updated_files": ["/app/backend/tests/test_molds_tipo_filters.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin password: admin2026",
+  "seed_data_creation": "Temporary QA-UI-M01, QA-UI-M01-B molds and QATipoUI11 tipo created during UI test. All cleaned up via DELETE /api/molds/{name} and DELETE /api/tipos/{name}.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter11 both features (auto-register tipo from mold form + molde/tipo filters on Reportes with export support) verified end-to-end. Regression test file at /app/backend/tests/test_molds_tipo_filters.py can be reused. Note: FACADE_FILTERS keys are 'all', 'Norte', 'Sur', 'Este', 'Oeste' (not single letters) - use data-testid=report-facade-Norte etc if targeting facade chips.",
+  "rca of the issue": "N/A - no bugs found"
+}

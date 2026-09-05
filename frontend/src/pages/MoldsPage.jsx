@@ -136,6 +136,9 @@ export default function MoldsPage() {
         const others = prev.filter((m) => m.name !== mold.name);
         return [...others, mold].sort((a, b) => a.name.localeCompare(b.name));
       });
+      if (mold.tipo) {
+        setTipos((prev) => (prev.includes(mold.tipo) ? prev : [...prev, mold.tipo].sort((a, b) => a.localeCompare(b))));
+      }
       closeMoldForm();
     } catch {
       setMoldError("No se pudo guardar el molde. Inténtalo de nuevo.");
@@ -366,19 +369,21 @@ function MoldForm({ form, setForm, tipos, saving, error, isNew, onCancel, onSave
           className="h-10 rounded-lg bg-white px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
         />
       )}
-      <select
-        data-testid="mold-form-tipo"
-        value={form.tipo}
-        onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
-        className="h-10 rounded-lg bg-white px-3 text-sm text-[#111111] outline-none"
-      >
-        <option value="">Selecciona un tipo</option>
-        {tipos.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-col gap-1">
+        <input
+          data-testid="mold-form-tipo"
+          list="mold-tipos-datalist"
+          value={form.tipo}
+          onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
+          placeholder="Tipo de molde (selecciona o escribe uno nuevo)"
+          className="h-10 rounded-lg bg-white px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
+        />
+        <datalist id="mold-tipos-datalist">
+          {tipos.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+      </div>
       <div className="flex items-center gap-2">
         <input
           data-testid="mold-form-ancho"

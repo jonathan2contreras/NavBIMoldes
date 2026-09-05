@@ -513,8 +513,16 @@ async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="El nombre del molde es obligatorio")
-    if not await db.tipos.find_one({"name": payload.tipo}):
-        raise HTTPException(status_code=422, detail="Tipo de molde inválido")
+    tipo = (payload.tipo or "").strip()
+    if not tipo:
+        raise HTTPException(status_code=422, detail="El tipo de molde es obligatorio")
+    # Reuse an existing tipo case-insensitively; otherwise auto-register the new one.
+    existing = await db.tipos.find_one({"name": {"$regex": f"^{re.escape(tipo)}$", "$options": "i"}})
+    if existing:
+        tipo = existing["name"]
+    else:
+        await db.tipos.insert_one({"name": tipo})
+    payload.tipo = tipo
     color = (payload.color or "").strip() or "#8E8E93"
     mold = Mold(name=name, tipo=payload.tipo, color=color, ancho=payload.ancho, alto=payload.alto)
     await db.molds.update_one({"name": name}, {"$set": mold.to_mongo()}, upsert=True)
@@ -788,7 +796,7 @@ async def delete_tag(object_name: str, _admin=Depends(require_admin)):
     return {"deleted": True, "object_name": object_name}
 
 
-async def build_molds_report(facade: str = "all"):
+async def build_molds_report(facade: str = "all", molde: str = "all", tipo: str = "all"):
     if facade != "all" and facade not in VALID_FACADES:
         raise HTTPException(status_code=422, detail="Fachada inválida")
     tags = await fetch_tags_map()
@@ -801,20 +809,31 @@ async def build_molds_report(facade: str = "all"):
         if facade != "all" and fac != facade:
             continue
         t = tags.get(name)
-        molde = t.molde if t else None
-        mold = molds.get(molde) if molde else None
-        if molde:
+        molde_name = t.molde if t else None
+        mold = molds.get(molde_name) if molde_name else None
+        tipo_name = mold.tipo if mold else None
+        if molde == "__none__":
+            if molde_name is not None:
+                continue
+        elif molde != "all" and molde_name != molde:
+            continue
+        if tipo == "__none__":
+            if tipo_name is not None:
+                continue
+        elif tipo != "all" and tipo_name != tipo:
+            continue
+        if molde_name:
             con_molde += 1
-            if molde not in resumen:
-                resumen[molde] = {"molde": molde, "tipo": mold.tipo if mold else None,
-                                   "color": mold.color if mold else None, "count": 0}
-            resumen[molde]["count"] += 1
+            if molde_name not in resumen:
+                resumen[molde_name] = {"molde": molde_name, "tipo": tipo_name,
+                                       "color": mold.color if mold else None, "count": 0}
+            resumen[molde_name]["count"] += 1
         items.append({
             "name": name,
             "mark": name.split(' ')[0],
             "facade": fac,
-            "molde": molde,
-            "tipo": mold.tipo if mold else None,
+            "molde": molde_name,
+            "tipo": tipo_name,
             "color": mold.color if mold else None,
             "ancho": mold.ancho if mold else None,
             "alto": mold.alto if mold else None,
@@ -831,12 +850,21 @@ async def build_molds_report(facade: str = "all"):
 
 
 @api_router.get("/report/molds")
-async def get_molds_report(facade: str = "all"):
+async def get_molds_report(facade: str = "all", molde: str = "all", tipo: str = "all"):
     """Report of panels and their assigned mold, grouped/sorted by facade."""
-    return await build_molds_report(facade)
+    return await build_molds_report(facade, molde, tipo)
 
 
-def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
+def _filter_label(facade: str, molde: str, tipo: str) -> str:
+    parts = [f"Fachada: {FACADE_LABELS.get(facade, facade) if facade != 'all' else 'Todas'}"]
+    if molde and molde != "all":
+        parts.append(f"Molde: {'Sin molde' if molde == '__none__' else molde}")
+    if tipo and tipo != "all":
+        parts.append(f"Tipo: {'Sin tipo' if tipo == '__none__' else tipo}")
+    return "   ·   ".join(parts)
+
+
+def make_molds_pdf(data: dict, facade: str = "all", molde: str = "all", tipo: str = "all") -> bytes:
     from io import BytesIO
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors as rl_colors
@@ -864,7 +892,7 @@ def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
         letterhead.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
         elems.append(letterhead)
         elems.append(Spacer(1, 5 * mm))
-    period = f"Fachada: {FACADE_LABELS.get(facade, facade) if facade != 'all' else 'Todas'}"
+    period = _filter_label(facade, molde, tipo)
     elems += [
         Paragraph("Reporte de Moldes — Paneles de Fachada", styles["Title"]),
         Paragraph(period, styles["Normal"]),
@@ -905,7 +933,7 @@ def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
     return buf.getvalue()
 
 
-def make_molds_xlsx(data: dict, facade: str = "all") -> bytes:
+def make_molds_xlsx(data: dict, facade: str = "all", molde: str = "all", tipo: str = "all") -> bytes:
     from io import BytesIO
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
@@ -915,7 +943,7 @@ def make_molds_xlsx(data: dict, facade: str = "all") -> bytes:
     ws.title = "Moldes"
     ws.append(["Reporte de Moldes — Paneles de Fachada"])
     ws["A1"].font = Font(bold=True, size=14)
-    ws.append([f"Fachada: {FACADE_LABELS.get(facade, facade) if facade != 'all' else 'Todas'}"])
+    ws.append([_filter_label(facade, molde, tipo)])
     ws.append([f"Total paneles: {data['total']}", f"Con molde: {data['con_molde']}", f"Sin molde: {data['sin_molde']}"])
     if data["resumen"]:
         ws.append([f"{r['molde']} ({r['tipo'] or '—'})" for r in data["resumen"]])
@@ -946,15 +974,15 @@ def make_molds_xlsx(data: dict, facade: str = "all") -> bytes:
 
 
 @api_router.get("/report/molds/export")
-async def export_molds_report(format: str = "xlsx", facade: str = "all"):
+async def export_molds_report(format: str = "xlsx", facade: str = "all", molde: str = "all", tipo: str = "all"):
     if format not in ("pdf", "xlsx"):
         raise HTTPException(status_code=422, detail="Formato inválido (pdf|xlsx)")
-    data = await build_molds_report(facade)
+    data = await build_molds_report(facade, molde, tipo)
     if format == "pdf":
-        content = make_molds_pdf(data, facade)
+        content = make_molds_pdf(data, facade, molde, tipo)
         media = "application/pdf"
     else:
-        content = make_molds_xlsx(data, facade)
+        content = make_molds_xlsx(data, facade, molde, tipo)
         media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     filename = f"reporte_moldes_{facade}.{format}"
     return Response(
