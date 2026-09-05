@@ -56,6 +56,8 @@
 
 - [x] (5 sep 2026) **Logos de la pantalla de carga**: reemplazados `logo_fiberkret.png`, `logo_entrepisos.png`, `logo_grcontreras.png` (frontend `public/` y backend `static/`, usados también en el letterhead del PDF) por las versiones limpias subidas por el usuario (sin marca de agua residual). Se quitó la tarjeta/contorno (borde + fondo + sombra) que envolvía cada logo en la pantalla de carga del modelo 3D (`ViewerPage.jsx`) — ahora se muestran directamente sobre el fondo blanco.
 
+- [x] (5 sep 2026) **Menú de Moldes dedicado**: nueva pestaña **Moldes** en el nav superior (entre Fotos y Reportes, solo administrador; el viewer no la ve y `/molds` redirige a `/` si no es admin) — `MoldsPage.jsx`. Gestiona ahí, con crear/editar/borrar completos: (a) **Tipos de molde** (chips con lápiz para renombrar y papelera para borrar, más "+ nuevo tipo"), (b) **Catálogo de moldes** (tarjetas con nombre/tipo/medidas/color; nuevo molde, editar existente —nombre no editable—, borrar con confirmación). Se eliminó por completo la creación/edición de moldes y tipos DESDE la ficha del panel: nuevo componente `MoldSelect.jsx` (selector simple, solo elegir o quitar molde, sin crear/editar) reemplaza a `MoldPicker.jsx`/`TipoPicker.jsx` (eliminados) en `TagSheet.jsx` y `BulkTagModal.jsx`. Testeado iteration_10: backend 11/11 pytest, frontend 100% (orden de pestañas, ocultamiento/redirect para viewer, CRUD de tipos y moldes, regresión de TagSheet/BulkTagModal sin crear/editar).
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.

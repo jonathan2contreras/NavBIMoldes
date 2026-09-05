@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Box, Camera, FileText, List, LogOut } from "lucide-react";
+import { Box, Camera, FileText, Layers, List, LogOut } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 
@@ -8,18 +8,19 @@ const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
   { to: "/photos", label: "Fotos", icon: Camera, testId: "tab-photos" },
+  { to: "/molds", label: "Moldes", icon: Layers, testId: "tab-molds", adminOnly: true },
   { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
 ];
 
 export default function AppLayout() {
-  const { role, logout } = useRole();
+  const { role, isAdmin, logout } = useRole();
   const navigate = useNavigate();
   if (!role) return <Navigate to="/login" replace />;
 
   return (
     <div className="flex h-screen flex-col bg-white">
       <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
           <NavLink
             key={t.to}
             to={t.to}

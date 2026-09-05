@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Camera, Compass, Eye, Loader2, Trash2, X } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
-import { MoldPicker } from "./MoldPicker";
+import { MoldSelect } from "./MoldSelect";
 import { PanelPreview } from "./panel3d/PanelPreview";
 import { useRole } from "../context/RoleContext";
 import { FACADE_LABELS, displayName, formatArea, formatDate, formatDims, tipoLabel } from "../lib/theme";
@@ -140,7 +140,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
               <p className="text-sm text-[#8E8E93]" data-testid="tag-sheet-molde-readonly">Sin molde asignado</p>
             )
           ) : (
-            <MoldPicker value={molde} onChange={setMolde} molds={molds} onMoldsChange={setMolds} />
+            <MoldSelect value={molde} onChange={setMolde} molds={molds} />
           )}
           {!!selectedMold && (selectedMold.ancho || selectedMold.alto) && (
             <p className="mt-2 text-xs text-[#8E8E93]" data-testid="tag-sheet-mold-medidas">

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Layers, Loader2, X } from "lucide-react";
 
 import { api } from "../lib/api";
-import { MoldPicker } from "./MoldPicker";
+import { MoldSelect } from "./MoldSelect";
 
 export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
   const [molds, setMolds] = useState([]);
@@ -80,7 +80,7 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#636366]">Molde de fabricación</p>
-          <MoldPicker value={molde} onChange={setMolde} molds={molds} onMoldsChange={setMolds} />
+          <MoldSelect value={molde} onChange={setMolde} molds={molds} />
 
           <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Notas</p>
           <textarea
