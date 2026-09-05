@@ -50,6 +50,8 @@
 
 - [x] (4 sep 2026) **Fix — Color de molde no se pintaba al asignar**: `TagSheet.handleSave` construía el callback `onSaved` con el `color_molde` STALE (previo a la edición) en vez del color del molde recién asignado, por lo que el visor 3D pintaba con `null`/color antiguo hasta recargar la página (el guardado en backend sí era correcto). Fix: `TagSheet.jsx` ahora busca el molde seleccionado en su catálogo local (`molds`) y enriquece el `onSaved` con `tipo`/`color_molde`/`ancho`/`alto` de ese molde (o los pone en `null` al borrar la etiqueta). `ObjectsPage.jsx` también actualiza el punto de color de la fila al instante. Verificado con testing_agent (6/6 escenarios: asignar, cambiar, borrar molde, persistencia tras hard-reload, fila de Objetos, regresión de etiquetado masivo).
 
+- [x] (5 sep 2026) **Contadores en la leyenda del visor 3D**: los chips de la leyenda ahora muestran cantidad de piezas por molde y el total — "Todas (533)", "M-01 (1)", "Sin molde (531)" — usando `GET /api/report/molds` (`ViewerPage.jsx`). Los contadores se refrescan tras guardar/borrar una etiqueta.
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.

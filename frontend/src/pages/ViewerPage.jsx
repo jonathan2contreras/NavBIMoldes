@@ -17,24 +17,48 @@ export default function ViewerPage() {
   const [focusedName, setFocusedName] = useState(null);
   const [sheetObj, setSheetObj] = useState(null);
   const [molds, setMolds] = useState([]);
+  const [report, setReport] = useState(null);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
   const focus = searchParams.get("focus");
   const t = searchParams.get("t");
 
+  const counts = {};
+  (report?.resumen || []).forEach((r) => (counts[r.molde] = r.count));
+
   const ISO_FILTERS = [
-    { key: "all", label: "Todas" },
-    ...molds.map((m) => ({ key: m.name, label: m.name, color: m.color, accent: m.color, textOn: "#FFFFFF" })),
-    { key: "none", label: "Sin molde", color: NO_MOLDE_COLOR, accent: NO_MOLDE_COLOR, textOn: "#FFFFFF" },
+    { key: "all", label: `Todas${report ? ` (${report.total})` : ""}` },
+    ...molds.map((m) => ({
+      key: m.name,
+      label: `${m.name}${report ? ` (${counts[m.name] || 0})` : ""}`,
+      color: m.color,
+      accent: m.color,
+      textOn: "#FFFFFF",
+    })),
+    {
+      key: "none",
+      label: `Sin molde${report ? ` (${report.sin_molde})` : ""}`,
+      color: NO_MOLDE_COLOR,
+      accent: NO_MOLDE_COLOR,
+      textOn: "#FFFFFF",
+    },
   ];
+
+  const refreshCounts = useCallback(() => {
+    api
+      .getMoldsReport("all")
+      .then(setReport)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api
       .getMolds()
       .then((r) => setMolds(r.items || []))
       .catch(() => {});
-  }, []);
+    refreshCounts();
+  }, [refreshCounts]);
 
   const sendCmd = useCallback((cmd, args = []) => {
     const payload = JSON.stringify({ __viewerCmd: true, cmd, args });
@@ -108,8 +132,11 @@ export default function ViewerPage() {
   };
 
   const handleSaved = useCallback(
-    (obj) => sendCmd("setTag", [obj.name, obj.molde ? { molde: obj.molde, color: obj.color_molde } : null]),
-    [sendCmd]
+    (obj) => {
+      sendCmd("setTag", [obj.name, obj.molde ? { molde: obj.molde, color: obj.color_molde } : null]);
+      refreshCounts();
+    },
+    [sendCmd, refreshCounts]
   );
 
   const closeSheet = useCallback(() => {
