@@ -215,6 +215,25 @@ export default function ViewerPage() {
 
       <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
+          {!!report && (
+            <div className="mb-2.5 flex items-center gap-3" data-testid="tagged-total-panel">
+              <div className="flex shrink-0 items-baseline gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-[#636366]">Paneles etiquetados</span>
+                <span className="text-sm font-extrabold text-[#111111]" data-testid="tagged-total-count">
+                  {report.total - report.sin_molde} / {report.total}
+                </span>
+                <span className="text-[11px] font-bold text-[#34C759]" data-testid="tagged-total-pct">
+                  {report.total ? Math.round(((report.total - report.sin_molde) / report.total) * 100) : 0}%
+                </span>
+              </div>
+              <div className="h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full bg-black/10">
+                <div
+                  className="h-full rounded-full bg-[#34C759] transition-all duration-300"
+                  style={{ width: `${report.total ? ((report.total - report.sin_molde) / report.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 overflow-x-auto pb-0.5" data-testid="mold-legend">
             {ISO_FILTERS.map((f) => {
               const selected = isoFilter === f.key;

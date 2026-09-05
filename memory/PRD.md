@@ -64,6 +64,8 @@
 
 - [x] (5 sep 2026) **Selección por fachada en el visor 3D**: con "Selección múltiple" activa aparece una fila "FACHADA · ＋Norte ＋Sur ＋Este ＋Oeste" (`facade-select-{key}`) que añade de golpe todos los paneles de esa fachada a la selección (acumulable entre fachadas) y luego se etiquetan juntos con el modal masivo. Nuevo endpoint `GET /api/objects/names?facade=&molde=` (devuelve `{names,total}` sin límite de 200 de `/api/objects`) y nuevo comando del visor `selectNames(names, additive)` en `viewer.html`. Verificado: Norte → 191 piezas resaltadas y "Etiquetado masivo · 191 piezas".
 
+- [x] (5 sep 2026) **Total de paneles etiquetados en el visor 3D**: nueva fila superior en el panel de la leyenda (`tagged-total-panel`) con "PANELES ETIQUETADOS 96 / 533 · 18%" (`tagged-total-count`, `tagged-total-pct`) y barra de progreso verde. Se calcula desde `GET /api/report/molds` (`total - sin_molde`) y se refresca al guardar/borrar etiquetas y tras el etiquetado masivo.
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.
