@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
+import { AlertCircle, Hand, Loader2, MousePointerClick, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
+import { BulkTagModal } from "../components/BulkTagModal";
+import { useRole } from "../context/RoleContext";
 import { LOGOS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
 export default function ViewerPage() {
+  const { isAdmin } = useRole();
   const iframeRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -18,6 +21,9 @@ export default function ViewerPage() {
   const [sheetObj, setSheetObj] = useState(null);
   const [molds, setMolds] = useState([]);
   const [report, setReport] = useState(null);
+  const [multiMode, setMultiMode] = useState(false);
+  const [multiNames, setMultiNames] = useState([]);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -117,6 +123,8 @@ export default function ViewerPage() {
       } else if (msg.type === "select") {
         setHintVisible(false);
         openObject(msg.name);
+      } else if (msg.type === "multiselect") {
+        setMultiNames(msg.names || []);
       }
     };
     window.addEventListener("message", handler);
@@ -148,6 +156,28 @@ export default function ViewerPage() {
     setFocusedName(null);
     sendCmd("clearSelection");
   };
+
+  const toggleMultiMode = () => {
+    const next = !multiMode;
+    setMultiMode(next);
+    setMultiNames([]);
+    setSheetObj(null);
+    setFocusedName(null);
+    setHintVisible(false);
+    sendCmd("setMultiMode", [next]);
+  };
+
+  const clearMultiSelection = () => {
+    setMultiNames([]);
+    sendCmd("clearMultiSelection");
+  };
+
+  const handleBulkApplied = useCallback(() => {
+    loadTags();
+    refreshCounts();
+    setMultiNames([]);
+    sendCmd("clearMultiSelection");
+  }, [loadTags, refreshCounts, sendCmd]);
 
   const retry = () => {
     setError("");
@@ -197,8 +227,53 @@ export default function ViewerPage() {
               );
             })}
           </div>
+          {isAdmin && (
+            <div className="mt-2 flex items-center gap-2 border-t border-white/60 pt-2">
+              <button
+                data-testid="multi-select-toggle"
+                onClick={toggleMultiMode}
+                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors"
+                style={
+                  multiMode
+                    ? { backgroundColor: "#1C1C1E", borderColor: "#1C1C1E", color: "#FFFFFF" }
+                    : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }
+                }
+              >
+                <MousePointerClick size={14} />
+                {multiMode ? "Selección múltiple activa" : "Selección múltiple"}
+              </button>
+              {multiMode && (
+                <span className="text-[11px] font-semibold text-[#3A3A3C]" data-testid="multi-select-hint">
+                  Toca varios paneles para seleccionarlos
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {!loading && !error && multiMode && multiNames.length > 0 && (
+        <div className="absolute bottom-6 left-4 right-4 flex justify-center">
+          <div className="flex w-full max-w-xl items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-lg" data-testid="multi-select-bar">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold tracking-wide text-[#8E8E93]">SELECCIÓN MÚLTIPLE</p>
+              <p className="truncate text-[13px] font-bold text-[#111111]" data-testid="multi-select-count">
+                {multiNames.length} {multiNames.length === 1 ? "pieza seleccionada" : "piezas seleccionadas"}
+              </p>
+            </div>
+            <button
+              data-testid="multi-select-tag-button"
+              onClick={() => setBulkOpen(true)}
+              className="flex h-[34px] items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3 text-xs font-bold text-white"
+            >
+              <Tag size={14} /> Etiquetar
+            </button>
+            <button onClick={clearMultiSelection} data-testid="multi-select-clear-button">
+              <X size={20} className="text-[#8E8E93]" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {!loading && !error && focusedName && (
         <div className="absolute bottom-6 left-4 right-4 flex justify-center">
@@ -221,7 +296,7 @@ export default function ViewerPage() {
         </div>
       )}
 
-      {!loading && !error && hintVisible && !focusedName && (
+      {!loading && !error && hintVisible && !focusedName && !multiMode && (
         <div className="pointer-events-none absolute bottom-6 left-0 right-0 flex justify-center">
           <div className="flex items-center gap-1.5 rounded-full bg-[#1C1C1E]/85 px-4 py-2.5" data-testid="tap-hint">
             <Hand size={14} className="text-white" />
@@ -272,6 +347,9 @@ export default function ViewerPage() {
       )}
 
       {sheetObj && <TagSheet obj={sheetObj} onClose={closeSheet} onSaved={handleSaved} />}
+      {bulkOpen && (
+        <BulkTagModal objectNames={multiNames} onClose={() => setBulkOpen(false)} onApplied={handleBulkApplied} />
+      )}
     </div>
   );
 }

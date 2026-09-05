@@ -110,6 +110,8 @@ const meshesByName = {};
 const meshList = [];
 let tags = {};
 let selectedName = null;
+let multiMode = false;
+const multiSelected = new Set();
 let pendingTags = null;
 let pendingFocus = null;
 let isolation = 'all';
@@ -121,10 +123,14 @@ function isVisibleFor(name) {
   return isolation === 'all' || (isolation === 'none' ? !molde : molde === isolation);
 }
 
+function isHighlighted(name) {
+  return name === selectedName || multiSelected.has(name);
+}
+
 function refreshMesh(name) {
   const m = meshesByName[name];
   if (!m) return;
-  m.material = matFor(tags[name] || null, name === selectedName);
+  m.material = matFor(tags[name] || null, isHighlighted(name));
   m.visible = isVisibleFor(name);
   renderer.shadowMap.needsUpdate = true;
   requestRender();
@@ -133,7 +139,7 @@ function refreshMesh(name) {
 function applyAll() {
   for (const mesh of meshList) {
     const key = mesh.userData.orig || mesh.name;
-    mesh.material = matFor(tags[key] || null, key === selectedName);
+    mesh.material = matFor(tags[key] || null, isHighlighted(key));
     mesh.visible = isVisibleFor(key);
   }
   renderer.shadowMap.needsUpdate = true;
@@ -198,6 +204,18 @@ window.viewerAPI = {
   focusObject(name) {
     if (!loaded) { pendingFocus = name; return; }
     focusByName(name);
+  },
+  setMultiMode(on) {
+    multiMode = !!on;
+    if (!multiMode) multiSelected.clear();
+    selectedName = null;
+    if (loaded) applyAll();
+    send({ type: 'multiselect', names: [] });
+  },
+  clearMultiSelection() {
+    multiSelected.clear();
+    if (loaded) applyAll();
+    send({ type: 'multiselect', names: [] });
   },
 };
 
@@ -405,6 +423,13 @@ canvas.addEventListener('pointerup', (e) => {
   const hits = raycaster.intersectObjects(meshList.filter((m) => m.visible), false);
   if (hits.length > 0) {
     const name = hits[0].object.userData.orig || hits[0].object.name;
+    if (multiMode) {
+      if (multiSelected.has(name)) multiSelected.delete(name);
+      else multiSelected.add(name);
+      refreshMesh(name);
+      send({ type: 'multiselect', names: Array.from(multiSelected) });
+      return;
+    }
     const prev = selectedName;
     selectedName = name;
     if (prev) refreshMesh(prev);

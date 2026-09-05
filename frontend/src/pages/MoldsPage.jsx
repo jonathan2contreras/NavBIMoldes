@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Check, Layers, Loader2, Pencil, Plus, Shapes, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, Layers, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
@@ -11,12 +11,6 @@ export default function MoldsPage() {
   const [tipos, setTipos] = useState([]);
   const [molds, setMolds] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const [newTipo, setNewTipo] = useState("");
-  const [tipoSaving, setTipoSaving] = useState(false);
-  const [tipoError, setTipoError] = useState("");
-  const [editingTipo, setEditingTipo] = useState(null);
-  const [editTipoValue, setEditTipoValue] = useState("");
 
   const [creatingMold, setCreatingMold] = useState(false);
   const [moldForm, setMoldForm] = useState({ name: "", tipo: "", color: "#007AFF", ancho: "", alto: "" });
@@ -42,53 +36,22 @@ export default function MoldsPage() {
     fetchAll();
   }, [fetchAll]);
 
-  const handleCreateTipo = useCallback(async () => {
-    const n = newTipo.trim();
-    if (!n) return;
-    setTipoSaving(true);
-    setTipoError("");
-    try {
-      const r = await api.createTipo(n);
-      setTipos((prev) => (prev.includes(r.name) ? prev : [...prev, r.name]));
-      setNewTipo("");
-    } catch {
-      setTipoError("No se pudo crear el tipo.");
-    } finally {
-      setTipoSaving(false);
-    }
-  }, [newTipo]);
+  const addTipoToCatalog = useCallback((name) => {
+    setTipos((prev) => (prev.includes(name) ? prev : [...prev, name].sort((a, b) => a.localeCompare(b))));
+  }, []);
 
-  const handleRenameTipo = useCallback(
-    async (old) => {
-      const n = editTipoValue.trim();
-      if (!n || n === old) {
-        setEditingTipo(null);
-        return;
-      }
-      try {
-        const r = await api.renameTipo(old, n);
-        setTipos((prev) => prev.map((t) => (t === old ? r.name : t)));
-        setMolds((prev) => prev.map((m) => (m.tipo === old ? { ...m, tipo: r.name } : m)));
-        setEditingTipo(null);
-      } catch {
-        setTipoError("No se pudo renombrar el tipo.");
-      }
-    },
-    [editTipoValue]
-  );
-
-  const handleDeleteTipo = useCallback(async (name) => {
+  const removeTipoFromCatalog = useCallback(async (name) => {
     try {
       await api.deleteTipo(name);
       setTipos((prev) => prev.filter((t) => t !== name));
       setMolds((prev) => prev.map((m) => (m.tipo === name ? { ...m, tipo: null } : m)));
     } catch {
-      setTipoError("No se pudo eliminar el tipo.");
+      setMoldError("No se pudo eliminar el tipo.");
     }
   }, []);
 
   const openCreateMold = () => {
-    setMoldForm({ name: "", tipo: tipos[0] || "", color: "#007AFF", ancho: "", alto: "" });
+    setMoldForm({ name: "", tipo: "", color: "#007AFF", ancho: "", alto: "" });
     setMoldError("");
     setCreatingMold(true);
     setEditingMold(null);
@@ -97,7 +60,7 @@ export default function MoldsPage() {
   const openEditMold = (m) => {
     setMoldForm({
       name: m.name,
-      tipo: tipos.includes(m.tipo) ? m.tipo : "",
+      tipo: m.tipo || "",
       color: m.color || "#007AFF",
       ancho: m.ancho ?? "",
       alto: m.alto ?? "",
@@ -136,16 +99,14 @@ export default function MoldsPage() {
         const others = prev.filter((m) => m.name !== mold.name);
         return [...others, mold].sort((a, b) => a.name.localeCompare(b.name));
       });
-      if (mold.tipo) {
-        setTipos((prev) => (prev.includes(mold.tipo) ? prev : [...prev, mold.tipo].sort((a, b) => a.localeCompare(b))));
-      }
+      if (mold.tipo) addTipoToCatalog(mold.tipo);
       closeMoldForm();
     } catch {
       setMoldError("No se pudo guardar el molde. Inténtalo de nuevo.");
     } finally {
       setMoldSaving(false);
     }
-  }, [moldForm]);
+  }, [moldForm, addTipoToCatalog]);
 
   const handleDeleteMold = useCallback(async (name) => {
     try {
@@ -163,195 +124,270 @@ export default function MoldsPage() {
     <div className="h-full overflow-y-auto bg-white" data-testid="molds-screen">
       <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-4">
         <h1 className="text-2xl font-extrabold text-[#111111]">Moldes</h1>
-        <p className="mt-0.5 text-[13px] text-[#636366]">Catálogo de moldes de fabricación y sus tipos</p>
+        <p className="mt-0.5 text-[13px] text-[#636366]">Catálogo de moldes de fabricación</p>
 
         {loading ? (
           <div className="flex justify-center py-16" data-testid="molds-loading">
             <Loader2 size={32} className="animate-spin text-[#1C1C1E]" />
           </div>
         ) : (
-          <>
-            <section className="mt-6" data-testid="tipos-section">
+          <section className="mt-6" data-testid="molds-section">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <Shapes size={16} className="text-[#636366]" />
-                <h2 className="text-xs font-bold uppercase tracking-wide text-[#636366]">Tipos de molde</h2>
+                <Layers size={16} className="text-[#636366]" />
+                <h2 className="text-xs font-bold uppercase tracking-wide text-[#636366]">Catálogo de moldes</h2>
               </div>
-              <div className="mt-2.5 flex flex-wrap gap-2" data-testid="tipos-list">
-                {tipos.map((t) =>
-                  editingTipo === t ? (
-                    <div key={t} className="flex h-9 items-center gap-1 rounded-full bg-[#F2F2F7] pl-3 pr-1" data-testid={`tipo-edit-${t}`}>
-                      <input
-                        autoFocus
-                        value={editTipoValue}
-                        onChange={(e) => setEditTipoValue(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleRenameTipo(t)}
-                        className="h-7 w-28 bg-transparent text-sm font-semibold text-[#111111] outline-none"
-                        data-testid={`tipo-edit-input-${t}`}
-                      />
-                      <button onClick={() => handleRenameTipo(t)} data-testid={`tipo-edit-save-${t}`} className="rounded-full p-1 hover:bg-[#E5E5EA]">
-                        <Check size={14} className="text-[#34C759]" />
-                      </button>
-                      <button onClick={() => setEditingTipo(null)} data-testid={`tipo-edit-cancel-${t}`} className="rounded-full p-1 hover:bg-[#E5E5EA]">
-                        <X size={14} className="text-[#8E8E93]" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div
-                      key={t}
-                      data-testid={`tipo-chip-${t}`}
-                      className="flex h-9 items-center gap-1.5 rounded-full bg-[#F2F2F7] pl-3.5 pr-1.5 text-sm font-semibold text-[#111111]"
-                    >
-                      {t}
-                      <button
-                        data-testid={`tipo-rename-${t}`}
-                        onClick={() => {
-                          setEditingTipo(t);
-                          setEditTipoValue(t);
-                        }}
-                        className="rounded-full p-1 hover:bg-[#E5E5EA]"
-                      >
-                        <Pencil size={12} className="text-[#8E8E93]" />
-                      </button>
-                      <button data-testid={`tipo-delete-${t}`} onClick={() => handleDeleteTipo(t)} className="rounded-full p-1 hover:bg-[#FFF0EE]">
-                        <Trash2 size={12} className="text-[#FF3B30]" />
-                      </button>
-                    </div>
-                  )
-                )}
-                <div className="flex h-9 items-center gap-1 rounded-full border border-dashed border-[#C7C7CC] pl-3 pr-1">
-                  <input
-                    data-testid="tipo-new-input"
-                    value={newTipo}
-                    onChange={(e) => setNewTipo(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCreateTipo()}
-                    placeholder="Nuevo tipo..."
-                    className="h-7 w-24 bg-transparent text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
-                  />
-                  <button
-                    data-testid="tipo-new-create"
-                    onClick={handleCreateTipo}
-                    disabled={tipoSaving}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1C1C1E] text-white disabled:opacity-70"
-                  >
-                    {tipoSaving ? <Loader2 size={12} className="animate-spin" /> : <Plus size={13} />}
-                  </button>
-                </div>
-              </div>
-              {!!tipoError && (
-                <p className="mt-1.5 text-xs text-[#FF3B30]" data-testid="tipo-error">
-                  {tipoError}
+              {!creatingMold && (
+                <button
+                  data-testid="mold-new-toggle"
+                  onClick={openCreateMold}
+                  className="flex h-8 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3 text-xs font-bold text-white"
+                >
+                  <Plus size={13} /> Nuevo molde
+                </button>
+              )}
+            </div>
+
+            {creatingMold && (
+              <MoldForm
+                form={moldForm}
+                setForm={setMoldForm}
+                tipos={tipos}
+                onTipoCreated={addTipoToCatalog}
+                onTipoDeleted={removeTipoFromCatalog}
+                saving={moldSaving}
+                error={moldError}
+                isNew
+                onCancel={closeMoldForm}
+                onSave={handleSaveMold}
+              />
+            )}
+
+            <div className="mt-3 flex flex-col gap-2" data-testid="molds-list">
+              {molds.length === 0 && !creatingMold && (
+                <p className="py-8 text-center text-sm text-[#8E8E93]" data-testid="molds-empty">
+                  Aún no hay moldes creados.
                 </p>
               )}
-            </section>
-
-            <section className="mt-7" data-testid="molds-section">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Layers size={16} className="text-[#636366]" />
-                  <h2 className="text-xs font-bold uppercase tracking-wide text-[#636366]">Catálogo de moldes</h2>
-                </div>
-                {!creatingMold && (
-                  <button
-                    data-testid="mold-new-toggle"
-                    onClick={openCreateMold}
-                    className="flex h-8 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3 text-xs font-bold text-white"
+              {molds.map((m) =>
+                editingMold === m.name ? (
+                  <MoldForm
+                    key={m.name}
+                    form={moldForm}
+                    setForm={setMoldForm}
+                    tipos={tipos}
+                    onTipoCreated={addTipoToCatalog}
+                    onTipoDeleted={removeTipoFromCatalog}
+                    saving={moldSaving}
+                    error={moldError}
+                    onCancel={closeMoldForm}
+                    onSave={handleSaveMold}
+                  />
+                ) : (
+                  <div
+                    key={m.name}
+                    data-testid={`mold-card-${m.name}`}
+                    className="flex items-center gap-3 rounded-xl border border-[#E5E5EA] px-3.5 py-3"
                   >
-                    <Plus size={13} /> Nuevo molde
-                  </button>
-                )}
-              </div>
-
-              {creatingMold && (
-                <MoldForm
-                  form={moldForm}
-                  setForm={setMoldForm}
-                  tipos={tipos}
-                  saving={moldSaving}
-                  error={moldError}
-                  isNew
-                  onCancel={closeMoldForm}
-                  onSave={handleSaveMold}
-                />
-              )}
-
-              <div className="mt-3 flex flex-col gap-2" data-testid="molds-list">
-                {molds.length === 0 && !creatingMold && (
-                  <p className="py-8 text-center text-sm text-[#8E8E93]" data-testid="molds-empty">
-                    Aún no hay moldes creados.
-                  </p>
-                )}
-                {molds.map((m) =>
-                  editingMold === m.name ? (
-                    <MoldForm
-                      key={m.name}
-                      form={moldForm}
-                      setForm={setMoldForm}
-                      tipos={tipos}
-                      saving={moldSaving}
-                      error={moldError}
-                      onCancel={closeMoldForm}
-                      onSave={handleSaveMold}
-                    />
-                  ) : (
-                    <div
-                      key={m.name}
-                      data-testid={`mold-card-${m.name}`}
-                      className="flex items-center gap-3 rounded-xl border border-[#E5E5EA] px-3.5 py-3"
-                    >
-                      <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-[#111111]">{m.name}</p>
-                        <p className="mt-0.5 text-xs text-[#8E8E93]">
-                          {m.tipo || "Sin tipo"}
-                          {m.ancho && m.alto ? ` · ${m.ancho}×${m.alto} m` : ""}
-                        </p>
-                      </div>
-                      <button
-                        data-testid={`mold-edit-${m.name}`}
-                        onClick={() => openEditMold(m)}
-                        className="shrink-0 rounded-full p-2 hover:bg-[#F2F2F7]"
-                      >
-                        <Pencil size={15} className="text-[#8E8E93]" />
-                      </button>
-                      {confirmDeleteMold === m.name ? (
-                        <div className="flex shrink-0 items-center gap-1.5" data-testid={`mold-delete-confirm-${m.name}`}>
-                          <button
-                            data-testid={`mold-delete-confirm-yes-${m.name}`}
-                            onClick={() => handleDeleteMold(m.name)}
-                            className="flex h-8 items-center gap-1 rounded-full bg-[#FF3B30] px-2.5 text-xs font-bold text-white"
-                          >
-                            <Trash2 size={12} /> Borrar
-                          </button>
-                          <button
-                            data-testid={`mold-delete-confirm-no-${m.name}`}
-                            onClick={() => setConfirmDeleteMold(null)}
-                            className="flex h-8 items-center rounded-full bg-[#F2F2F7] px-2.5 text-xs font-bold text-[#3A3A3C]"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          data-testid={`mold-delete-${m.name}`}
-                          onClick={() => setConfirmDeleteMold(m.name)}
-                          className="shrink-0 rounded-full p-2 hover:bg-[#FFF0EE]"
-                        >
-                          <Trash2 size={15} className="text-[#FF3B30]" />
-                        </button>
-                      )}
+                    <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-[#111111]">{m.name}</p>
+                      <p className="mt-0.5 text-xs text-[#8E8E93]">
+                        {m.tipo || "Sin tipo"}
+                        {m.ancho && m.alto ? ` · ${m.ancho}×${m.alto} m` : ""}
+                      </p>
                     </div>
-                  )
-                )}
-              </div>
-            </section>
-          </>
+                    <button
+                      data-testid={`mold-edit-${m.name}`}
+                      onClick={() => openEditMold(m)}
+                      className="shrink-0 rounded-full p-2 hover:bg-[#F2F2F7]"
+                    >
+                      <Pencil size={15} className="text-[#8E8E93]" />
+                    </button>
+                    {confirmDeleteMold === m.name ? (
+                      <div className="flex shrink-0 items-center gap-1.5" data-testid={`mold-delete-confirm-${m.name}`}>
+                        <button
+                          data-testid={`mold-delete-confirm-yes-${m.name}`}
+                          onClick={() => handleDeleteMold(m.name)}
+                          className="flex h-8 items-center gap-1 rounded-full bg-[#FF3B30] px-2.5 text-xs font-bold text-white"
+                        >
+                          <Trash2 size={12} /> Borrar
+                        </button>
+                        <button
+                          data-testid={`mold-delete-confirm-no-${m.name}`}
+                          onClick={() => setConfirmDeleteMold(null)}
+                          className="flex h-8 items-center rounded-full bg-[#F2F2F7] px-2.5 text-xs font-bold text-[#3A3A3C]"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        data-testid={`mold-delete-${m.name}`}
+                        onClick={() => setConfirmDeleteMold(m.name)}
+                        className="shrink-0 rounded-full p-2 hover:bg-[#FFF0EE]"
+                      >
+                        <Trash2 size={15} className="text-[#FF3B30]" />
+                      </button>
+                    )}
+                  </div>
+                )
+              )}
+            </div>
+          </section>
         )}
       </div>
     </div>
   );
 }
 
-function MoldForm({ form, setForm, tipos, saving, error, isNew, onCancel, onSave }) {
+function TipoSelect({ value, onChange, tipos, onTipoCreated, onTipoDeleted }) {
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) {
+        setOpen(false);
+        setCreating(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const handleCreate = async () => {
+    const n = newName.trim();
+    if (!n) return;
+    setSaving(true);
+    try {
+      const r = await api.createTipo(n);
+      onTipoCreated?.(r.name);
+      onChange(r.name);
+      setNewName("");
+      setCreating(false);
+      setOpen(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={boxRef}>
+      <button
+        type="button"
+        data-testid="mold-form-tipo-trigger"
+        onClick={() => setOpen((o) => !o)}
+        className="flex h-10 w-full items-center justify-between rounded-lg bg-white px-3 text-left text-sm text-[#111111]"
+      >
+        <span className={value ? "font-semibold" : "text-[#8E8E93]"}>{value || "Selecciona un tipo de molde"}</span>
+        <ChevronDown size={16} className="text-[#8E8E93]" />
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-[#E5E5EA] bg-white py-1 shadow-xl"
+          data-testid="mold-form-tipo-dropdown"
+        >
+          {tipos.length === 0 && !creating && (
+            <p className="px-3 py-2 text-xs text-[#8E8E93]">Aún no hay tipos. Crea el primero.</p>
+          )}
+          {tipos.map((t) => (
+            <div key={t} className="flex items-center gap-1 px-1">
+              <button
+                type="button"
+                data-testid={`mold-form-tipo-option-${t}`}
+                onClick={() => {
+                  onChange(t);
+                  setOpen(false);
+                }}
+                className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium text-[#111111] hover:bg-[#F2F2F7]"
+              >
+                <span className="min-w-0 flex-1 truncate">{t}</span>
+                {value === t && <Check size={14} className="shrink-0 text-[#34C759]" />}
+              </button>
+              {confirmDelete === t ? (
+                <>
+                  <button
+                    type="button"
+                    data-testid={`mold-form-tipo-delete-yes-${t}`}
+                    onClick={() => {
+                      setConfirmDelete(null);
+                      onTipoDeleted?.(t);
+                    }}
+                    className="h-7 shrink-0 rounded-full bg-[#FF3B30] px-2 text-[11px] font-bold text-white"
+                  >
+                    Borrar
+                  </button>
+                  <button
+                    type="button"
+                    data-testid={`mold-form-tipo-delete-no-${t}`}
+                    onClick={() => setConfirmDelete(null)}
+                    className="shrink-0 rounded-full p-1.5 hover:bg-[#F2F2F7]"
+                  >
+                    <X size={13} className="text-[#8E8E93]" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  data-testid={`mold-form-tipo-delete-${t}`}
+                  onClick={() => setConfirmDelete(t)}
+                  className="shrink-0 rounded-full p-1.5 hover:bg-[#FFF0EE]"
+                >
+                  <Trash2 size={13} className="text-[#FF3B30]" />
+                </button>
+              )}
+            </div>
+          ))}
+
+          <div className="mt-1 border-t border-[#F2F2F7] px-1 pt-1">
+            {creating ? (
+              <div className="flex items-center gap-1 px-1.5 py-1">
+                <input
+                  autoFocus
+                  data-testid="mold-form-tipo-new-input"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  placeholder="Nombre del nuevo tipo"
+                  className="h-8 min-w-0 flex-1 rounded-lg bg-[#F2F2F7] px-2.5 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
+                />
+                <button
+                  type="button"
+                  data-testid="mold-form-tipo-new-save"
+                  onClick={handleCreate}
+                  disabled={saving}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1C1C1E] text-white disabled:opacity-70"
+                >
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+                </button>
+                <button type="button" onClick={() => setCreating(false)} className="shrink-0 rounded-full p-1.5 hover:bg-[#F2F2F7]">
+                  <X size={14} className="text-[#8E8E93]" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-testid="mold-form-tipo-new-toggle"
+                onClick={() => setCreating(true)}
+                className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-sm font-bold text-[#007AFF] hover:bg-[#F2F2F7]"
+              >
+                <Plus size={14} /> Crear nuevo tipo
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MoldForm({ form, setForm, tipos, onTipoCreated, onTipoDeleted, saving, error, isNew, onCancel, onSave }) {
   return (
     <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-[#F2F2F7] p-3.5" data-testid="mold-form">
       <div className="flex items-center justify-between">
@@ -370,19 +406,14 @@ function MoldForm({ form, setForm, tipos, saving, error, isNew, onCancel, onSave
         />
       )}
       <div className="flex flex-col gap-1">
-        <input
-          data-testid="mold-form-tipo"
-          list="mold-tipos-datalist"
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[#8E8E93]">Tipo de molde</span>
+        <TipoSelect
           value={form.tipo}
-          onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
-          placeholder="Tipo de molde (selecciona o escribe uno nuevo)"
-          className="h-10 rounded-lg bg-white px-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
+          onChange={(t) => setForm((f) => ({ ...f, tipo: t }))}
+          tipos={tipos}
+          onTipoCreated={onTipoCreated}
+          onTipoDeleted={onTipoDeleted}
         />
-        <datalist id="mold-tipos-datalist">
-          {tipos.map((t) => (
-            <option key={t} value={t} />
-          ))}
-        </datalist>
       </div>
       <div className="flex items-center gap-2">
         <input
