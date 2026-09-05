@@ -678,6 +678,27 @@ async def list_objects(
     return {"total": total, "items": filtered[skip:skip + limit]}
 
 
+@api_router.get("/objects/names")
+async def list_object_names(facade: str = "all", molde: str = "all"):
+    """Names of facade panels matching the filters (for bulk selection in the 3D viewer)."""
+    if facade != "all" and facade not in VALID_FACADES:
+        raise HTTPException(status_code=422, detail="Fachada no válida")
+    tags = await fetch_tags_map()
+    names = []
+    for name in sorted(FACADE_NAMES):
+        if facade != "all" and FACADES.get(name) != facade:
+            continue
+        t = tags.get(name)
+        t_molde = t.molde if t else None
+        if molde == "none":
+            if t_molde is not None:
+                continue
+        elif molde != "all" and t_molde != molde:
+            continue
+        names.append(name)
+    return {"names": names, "total": len(names)}
+
+
 @api_router.get("/object")
 async def get_object(name: str):
     if name not in NAME_SET:

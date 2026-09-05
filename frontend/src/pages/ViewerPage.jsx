@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Hand, Loader2, MousePointerClick, Tag, X } from "lucide-react";
+import { AlertCircle, Hand, Loader2, MousePointerClick, Plus, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { BulkTagModal } from "../components/BulkTagModal";
 import { useRole } from "../context/RoleContext";
-import { LOGOS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
+import { FACADE_LABELS, LOGOS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
 export default function ViewerPage() {
   const { isAdmin } = useRole();
@@ -24,6 +24,7 @@ export default function ViewerPage() {
   const [multiMode, setMultiMode] = useState(false);
   const [multiNames, setMultiNames] = useState([]);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [facadeLoading, setFacadeLoading] = useState(null);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -172,8 +173,22 @@ export default function ViewerPage() {
     sendCmd("clearMultiSelection");
   };
 
-  const handleBulkApplied = useCallback(() => {
-    loadTags();
+  const selectFacade = useCallback(
+    async (facade) => {
+      setFacadeLoading(facade);
+      try {
+        const r = await api.getObjectNames(facade, "all");
+        sendCmd("selectNames", [r.names || [], true]);
+      } catch {
+        // no-op
+      } finally {
+        setFacadeLoading(null);
+      }
+    },
+    [sendCmd]
+  );
+
+  const handleBulkApplied = useCallback(() => {    loadTags();
     refreshCounts();
     setMultiNames([]);
     sendCmd("clearMultiSelection");
@@ -246,6 +261,23 @@ export default function ViewerPage() {
                 <span className="text-[11px] font-semibold text-[#3A3A3C]" data-testid="multi-select-hint">
                   Toca varios paneles para seleccionarlos
                 </span>
+              )}
+              {multiMode && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pl-1" data-testid="facade-select-group">
+                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-[#8E8E93]">Fachada</span>
+                  {Object.entries(FACADE_LABELS).map(([key, label]) => (
+                    <button
+                      key={key}
+                      data-testid={`facade-select-${key}`}
+                      onClick={() => selectFacade(key)}
+                      disabled={facadeLoading === key}
+                      className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white disabled:opacity-60"
+                    >
+                      {facadeLoading === key ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                      {label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}

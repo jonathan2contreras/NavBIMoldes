@@ -217,6 +217,14 @@ window.viewerAPI = {
     if (loaded) applyAll();
     send({ type: 'multiselect', names: [] });
   },
+  selectNames(names, additive) {
+    multiMode = true;
+    if (!additive) multiSelected.clear();
+    (names || []).forEach((n) => { if (meshesByName[n]) multiSelected.add(n); });
+    selectedName = null;
+    if (loaded) applyAll();
+    send({ type: 'multiselect', names: Array.from(multiSelected) });
+  },
 };
 
 // Command channel: works cross-origin (parent postMessage) and from RN WebView (injectJavaScript)

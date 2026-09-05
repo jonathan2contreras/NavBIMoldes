@@ -46,6 +46,8 @@ export const api = {
       `/objects?search=${encodeURIComponent(p.search || "")}&molde=${encodeURIComponent(p.molde || "all")}&facade=${p.facade || "all"}&skip=${p.skip || 0}&limit=${p.limit || 50}`
     ),
   getObject: (name) => req(`/object?name=${encodeURIComponent(name)}`),
+  getObjectNames: (facade, molde) =>
+    req(`/objects/names?facade=${facade || "all"}&molde=${encodeURIComponent(molde || "all")}`),
   getObjectMesh: (name) => req(`/object/mesh?name=${encodeURIComponent(name)}`),
   getTags: () => req("/tags"),
   saveTag: (body) => req("/tags", { method: "PUT", body: JSON.stringify(body) }),
