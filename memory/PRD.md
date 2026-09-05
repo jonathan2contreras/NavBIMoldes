@@ -54,6 +54,8 @@
 
 - [x] (5 sep 2026) **Editar molde existente**: en el `MoldPicker`, cada molde de la lista tiene un ícono de lápiz que abre un formulario inline (tipo/ancho/alto/color) y "Guardar cambios" — usa el mismo `POST /api/molds` (upsert por nombre, sin cambios de backend). El nombre del molde no es editable (es la clave referenciada por las piezas/historial). Se blindó `startEdit` para no precargar un `tipo` que ya no exista en el catálogo de tipos (evita el 422 que sufrió el molde legado "M-01" con `tipo="curvo"` minúscula — dato ya corregido a "Curvo" en Mongo). Verificado end-to-end con screenshot (edición de M-01 → 1.25×2.75, respuesta 200).
 
+- [x] (5 sep 2026) **Logos de la pantalla de carga**: reemplazados `logo_fiberkret.png`, `logo_entrepisos.png`, `logo_grcontreras.png` (frontend `public/` y backend `static/`, usados también en el letterhead del PDF) por las versiones limpias subidas por el usuario (sin marca de agua residual). Se quitó la tarjeta/contorno (borde + fondo + sombra) que envolvía cada logo en la pantalla de carga del modelo 3D (`ViewerPage.jsx`) — ahora se muestran directamente sobre el fondo blanco.
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.

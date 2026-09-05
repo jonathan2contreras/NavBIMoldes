@@ -15,9 +15,9 @@ export const FACADE_FILTERS = [
 ];
 
 export const LOGOS = [
-  { key: "fiberkret", src: "/logo_fiberkret.png", ratio: 1600 / 533 },
-  { key: "entrepisos", src: "/logo_entrepisos.png", ratio: 921 / 371 },
-  { key: "grcontreras", src: "/logo_grcontreras.png", ratio: 921 / 372 },
+  { key: "fiberkret", src: "/logo_fiberkret.png", ratio: 1032 / 290 },
+  { key: "entrepisos", src: "/logo_entrepisos.png", ratio: 1020 / 411 },
+  { key: "grcontreras", src: "/logo_grcontreras.png", ratio: 1340 / 542 },
 ];
 
 export function displayName(name) {

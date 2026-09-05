@@ -232,20 +232,16 @@ export default function ViewerPage() {
 
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 bg-white px-8 py-10" data-testid="viewer-loading">
-          <div className="flex flex-col items-center justify-center gap-6" data-testid="viewer-loading-logos">
+          <div className="flex flex-col items-center justify-center gap-7" data-testid="viewer-loading-logos">
             {LOGOS.map((l) => (
-              <div
+              <img
                 key={l.key}
-                className="flex h-[84px] w-[240px] items-center justify-center rounded-2xl border border-[#E5E5EA] bg-white px-5 shadow-sm"
-              >
-                <img
-                  src={l.src}
-                  alt={l.key}
-                  data-testid={`viewer-loading-logo-${l.key}`}
-                  className="max-h-full max-w-full object-contain"
-                  style={{ aspectRatio: l.ratio }}
-                />
-              </div>
+                src={l.src}
+                alt={l.key}
+                data-testid={`viewer-loading-logo-${l.key}`}
+                className="h-[70px] w-[230px] object-contain"
+                style={{ aspectRatio: l.ratio }}
+              />
             ))}
           </div>
 

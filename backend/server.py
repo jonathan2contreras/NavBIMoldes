@@ -852,9 +852,9 @@ def make_molds_pdf(data: dict, facade: str = "all") -> bytes:
     styles = getSampleStyleSheet()
     elems = []
     logo_defs = [
-        ("logo_fiberkret.png", 1600 / 533),
-        ("logo_entrepisos.png", 921 / 371),
-        ("logo_grcontreras.png", 921 / 372),
+        ("logo_fiberkret.png", 1032 / 290),
+        ("logo_entrepisos.png", 1020 / 411),
+        ("logo_grcontreras.png", 1340 / 542),
     ]
     lh = 10 * mm
     imgs = [RLImage(str(STATIC_DIR / f), width=lh * r, height=lh)
