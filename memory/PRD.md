@@ -52,11 +52,12 @@
 
 - [x] (5 sep 2026) **Contadores en la leyenda del visor 3D**: los chips de la leyenda ahora muestran cantidad de piezas por molde y el total — "Todas (533)", "M-01 (1)", "Sin molde (531)" — usando `GET /api/report/molds` (`ViewerPage.jsx`). Los contadores se refrescan tras guardar/borrar una etiqueta.
 
+- [x] (5 sep 2026) **Editar molde existente**: en el `MoldPicker`, cada molde de la lista tiene un ícono de lápiz que abre un formulario inline (tipo/ancho/alto/color) y "Guardar cambios" — usa el mismo `POST /api/molds` (upsert por nombre, sin cambios de backend). El nombre del molde no es editable (es la clave referenciada por las piezas/historial). Se blindó `startEdit` para no precargar un `tipo` que ya no exista en el catálogo de tipos (evita el 422 que sufrió el molde legado "M-01" con `tipo="curvo"` minúscula — dato ya corregido a "Curvo" en Mongo). Verificado end-to-end con screenshot (edición de M-01 → 1.25×2.75, respuesta 200).
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.
 - P2: multiusuario / exportar CSV.
-- P2: limpiar molde legado "M-01" (tipo="curvo" minúscula, ancho/alto null) creado en pruebas tempranas.
 
 ## Notas técnicas
 - No modificar MONGO_URL/DB_NAME. GLB en `/app/backend/static/nab3d.glb`; si se reemplaza, borrar `objects.json` para regenerar catálogo.
