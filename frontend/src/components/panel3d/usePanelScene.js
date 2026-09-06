@@ -73,10 +73,31 @@ export function usePanelScene(
     scene.add(measureGroup);
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
-    const markerR = Math.max(radius * 0.03, 0.005);
+    const crossR = Math.max(radius * 0.016, 0.002);
+    const snapR = Math.max(radius * 0.025, 0.004);
+    const crosses = [];
+
+    // Camera-facing cross (two thin perpendicular lines) used as a precise marker
+    const makeCross = (color, opacity = 1) => {
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-crossR, 0, 0), new THREE.Vector3(crossR, 0, 0),
+        new THREE.Vector3(0, -crossR, 0), new THREE.Vector3(0, crossR, 0),
+      ]);
+      const m = new THREE.LineSegments(
+        g,
+        new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity, depthTest: false })
+      );
+      m.renderOrder = 10;
+      return m;
+    };
+
+    const cursor = makeCross(0xff3b30, 0.55);
+    cursor.visible = false;
+    scene.add(cursor);
 
     const clearMeasure = () => {
       points = [];
+      crosses.length = 0;
       while (measureGroup.children.length) {
         const c = measureGroup.children.pop();
         c.geometry?.dispose();
@@ -87,30 +108,48 @@ export function usePanelScene(
     };
 
     const addMarker = (pt) => {
-      const s = new THREE.Mesh(
-        new THREE.SphereGeometry(markerR, 16, 16),
-        new THREE.MeshBasicMaterial({ color: 0xff3b30 })
-      );
-      s.position.copy(pt);
-      measureGroup.add(s);
+      const c = makeCross(0xff3b30);
+      c.position.copy(pt);
+      measureGroup.add(c);
+      crosses.push(c);
     };
 
-    const handleMeasureClick = (clientX, clientY) => {
+    // Raycast the panel; snap to the nearest vertex of the hit face when close enough
+    const pickPoint = (clientX, clientY) => {
       const rect = canvas.getBoundingClientRect();
       pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObject(panel, true);
-      if (!hits.length) return;
-      const pt = hits[0].point.clone();
+      const hit = raycaster.intersectObject(panel, false)[0];
+      if (!hit) return null;
+      const pt = hit.point.clone();
+      if (!hit.face) return pt;
+      const pos = geom.attributes.position;
+      let best = null;
+      let bestD = snapR;
+      for (const idx of [hit.face.a, hit.face.b, hit.face.c]) {
+        const v = panel.localToWorld(new THREE.Vector3().fromBufferAttribute(pos, idx));
+        const d = v.distanceTo(pt);
+        if (d < bestD) {
+          bestD = d;
+          best = v;
+        }
+      }
+      return best || pt;
+    };
+
+    const handleMeasureClick = (clientX, clientY) => {
+      const pt = pickPoint(clientX, clientY);
+      if (!pt) return;
       if (points.length >= 2) clearMeasure();
       points.push(pt);
       addMarker(pt);
       if (points.length === 2) {
         const line = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(points),
-          new THREE.LineBasicMaterial({ color: 0xff3b30 })
+          new THREE.LineBasicMaterial({ color: 0xff3b30, depthTest: false })
         );
+        line.renderOrder = 9;
         measureGroup.add(line);
         onMeasure?.({ mm: points[0].distanceTo(points[1]) * unitScale });
       } else {
@@ -122,7 +161,18 @@ export function usePanelScene(
       if (!measureMode) return;
       handleMeasureClick(e.clientX, e.clientY);
     };
+    const onPointerMove = (e) => {
+      if (!measureMode) return;
+      const pt = pickPoint(e.clientX, e.clientY);
+      cursor.visible = !!pt;
+      if (pt) cursor.position.copy(pt);
+    };
+    const onPointerLeave = () => {
+      cursor.visible = false;
+    };
     canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerleave", onPointerLeave);
 
     if (measureRef) {
       measureRef.current = {
@@ -133,7 +183,10 @@ export function usePanelScene(
             controls.enableRotate = !on;
             controls.enablePan = !on;
           }
-          if (!on) clearMeasure();
+          if (!on) {
+            clearMeasure();
+            cursor.visible = false;
+          }
         },
         clear: clearMeasure,
       };
@@ -154,6 +207,8 @@ export function usePanelScene(
     const tick = () => {
       if (spinning) panel.rotation.y += 0.012;
       controls?.update();
+      cursor.quaternion.copy(camera.quaternion);
+      for (const c of crosses) c.quaternion.copy(camera.quaternion);
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
     };
@@ -163,8 +218,12 @@ export function usePanelScene(
       cancelAnimationFrame(raf);
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
       if (measureRef) measureRef.current = null;
       clearMeasure();
+      cursor.geometry.dispose();
+      cursor.material.dispose();
       controls?.dispose();
       geom.dispose();
       edges.geometry.dispose();
