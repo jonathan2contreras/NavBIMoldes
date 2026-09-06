@@ -68,6 +68,10 @@
 
 - [x] (5 sep 2026) **Frenado suave al rotar el modelo 3D**: el visor mantenía inercia larga al soltar el ratón (OrbitControls `dampingFactor = 0.1` + 12 frames de damping). Ahora `dampingFactor = 0.35` y 6 frames (`viewer.html`): el giro se detiene de forma suave pero casi inmediata al parar el ratón, sin rotación continua residual.
 
+- [x] (6 jun 2026) **Medición de paneles en la ventana de pantalla completa (mm)**: en el visor de panel a pantalla completa (que se abre desde la miniatura del TagSheet) se añadió una herramienta **Medir** (`panel-measure-toggle`). Al activarla, el modelo deja de rotar/orbitar y el usuario toca dos puntos sobre el panel 3D (raycasting sobre la malla): se dibujan dos marcadores rojos + una línea y se muestra la distancia en **milímetros** (`panel-measure-result`). Botón **Limpiar** (`panel-measure-clear`) para reiniciar. Conversión de unidades: la escena está en metros (tamaños ~2.9×5.7 m) → mm × 1000 (heurística `maxDim>100 ? 1 : 1000`). Implementado en `usePanelScene.js` (raycaster + grupo de medición, `measureRef.setMode/clear`) y `PanelFullscreen.jsx`. Testeado iteration_13 (frontend 100%).
+- [x] (6 jun 2026) **Limpieza de datos de prueba en Reportes**: eliminado el tag de prueba `C1 C1 [6421217]` con molde inexistente `TEST_M_MOLD_B` (dejado por la suite de tests) de la colección `tags`; ya no aparece en el reporte de moldes ni en el resumen.
+- [x] (6 jun 2026) **Reporte PDF — logos centrados + recuadro de color**: (1) el membrete de los 3 logos ahora se centra horizontalmente en el folio (`hAlign="CENTER"` + `ALIGN CENTER` en `make_molds_pdf`). (2) La columna **Color** ya no muestra el texto hex: cada celda pinta un recuadro relleno con el color del molde (comandos `BACKGROUND` por celda vía `HexColor`; "—" si la pieza no tiene molde/color). Verificado con inspección del PDF generado.
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.

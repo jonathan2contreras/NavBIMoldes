@@ -14,7 +14,11 @@ export function buildPanelGeometry(mesh) {
   return geom;
 }
 
-export function usePanelScene(canvasRef, mesh, { interactive = false, autoRotate = true } = {}) {
+export function usePanelScene(
+  canvasRef,
+  mesh,
+  { interactive = false, autoRotate = true, measureRef = null, unitScale = 1, onMeasure = null } = {}
+) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !mesh) return undefined;
@@ -62,6 +66,79 @@ export function usePanelScene(canvasRef, mesh, { interactive = false, autoRotate
       });
     }
 
+    // ---- Measurement mode (interactive only) ----
+    let measureMode = false;
+    let points = [];
+    const measureGroup = new THREE.Group();
+    scene.add(measureGroup);
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const markerR = Math.max(radius * 0.03, 0.005);
+
+    const clearMeasure = () => {
+      points = [];
+      while (measureGroup.children.length) {
+        const c = measureGroup.children.pop();
+        c.geometry?.dispose();
+        c.material?.dispose();
+        measureGroup.remove(c);
+      }
+      onMeasure?.(null);
+    };
+
+    const addMarker = (pt) => {
+      const s = new THREE.Mesh(
+        new THREE.SphereGeometry(markerR, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff3b30 })
+      );
+      s.position.copy(pt);
+      measureGroup.add(s);
+    };
+
+    const handleMeasureClick = (clientX, clientY) => {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObject(panel, true);
+      if (!hits.length) return;
+      const pt = hits[0].point.clone();
+      if (points.length >= 2) clearMeasure();
+      points.push(pt);
+      addMarker(pt);
+      if (points.length === 2) {
+        const line = new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(points),
+          new THREE.LineBasicMaterial({ color: 0xff3b30 })
+        );
+        measureGroup.add(line);
+        onMeasure?.({ mm: points[0].distanceTo(points[1]) * unitScale });
+      } else {
+        onMeasure?.({ mm: null, started: true });
+      }
+    };
+
+    const onPointerDown = (e) => {
+      if (!measureMode) return;
+      handleMeasureClick(e.clientX, e.clientY);
+    };
+    canvas.addEventListener("pointerdown", onPointerDown);
+
+    if (measureRef) {
+      measureRef.current = {
+        setMode(on) {
+          measureMode = on;
+          spinning = false;
+          if (controls) {
+            controls.enableRotate = !on;
+            controls.enablePan = !on;
+          }
+          if (!on) clearMeasure();
+        },
+        clear: clearMeasure,
+      };
+    }
+
     const resize = () => {
       const w = canvas.clientWidth || 1;
       const h = canvas.clientHeight || 1;
@@ -85,6 +162,9 @@ export function usePanelScene(canvasRef, mesh, { interactive = false, autoRotate
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      if (measureRef) measureRef.current = null;
+      clearMeasure();
       controls?.dispose();
       geom.dispose();
       edges.geometry.dispose();
@@ -92,5 +172,5 @@ export function usePanelScene(canvasRef, mesh, { interactive = false, autoRotate
       mat.dispose();
       renderer.dispose();
     };
-  }, [canvasRef, mesh, interactive, autoRotate]);
+  }, [canvasRef, mesh, interactive, autoRotate, measureRef, unitScale, onMeasure]);
 }

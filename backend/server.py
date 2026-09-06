@@ -909,8 +909,11 @@ def make_molds_pdf(data: dict, facade: str = "all", molde: str = "all", tipo: st
     imgs = [RLImage(str(STATIC_DIR / f), width=lh * r, height=lh)
             for f, r in logo_defs if (STATIC_DIR / f).exists()]
     if imgs:
-        letterhead = Table([imgs], colWidths=[i.drawWidth + 8 * mm for i in imgs], hAlign="LEFT")
-        letterhead.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        letterhead = Table([imgs], colWidths=[i.drawWidth + 8 * mm for i in imgs], hAlign="CENTER")
+        letterhead.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ]))
         elems.append(letterhead)
         elems.append(Spacer(1, 5 * mm))
     period = _filter_label(facade, molde, tipo)
@@ -930,15 +933,25 @@ def make_molds_pdf(data: dict, facade: str = "all", molde: str = "all", tipo: st
         elems.append(Paragraph(summary, styles["Normal"]))
     elems.append(Spacer(1, 5 * mm))
     rows = [["Pieza", "Fachada", "Molde", "Tipo", "Medidas", "Color"]]
-    for it in data["items"]:
+    color_cmds = []
+    for i, it in enumerate(data["items"]):
         medidas = f"{it['ancho']} × {it['alto']}" if it.get("ancho") and it.get("alto") else "—"
+        col = it.get("color")
+        swatch = ""
+        if col:
+            try:
+                color_cmds.append(("BACKGROUND", (5, i + 1), (5, i + 1), rl_colors.HexColor(col)))
+            except Exception:
+                swatch = "—"
+        else:
+            swatch = "—"
         rows.append([
             Paragraph(display_name(it["name"]), styles["BodyText"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
             it["molde"] or "—",
             it["tipo"] or "—",
             medidas,
-            it.get("color") or "—",
+            swatch,
         ])
     table = Table(rows, colWidths=[46 * mm, 20 * mm, 28 * mm, 28 * mm, 24 * mm, 24 * mm], repeatRows=1)
     table.setStyle(TableStyle([
@@ -948,6 +961,7 @@ def make_molds_pdf(data: dict, facade: str = "all", molde: str = "all", tipo: st
         ("GRID", (0, 0), (-1, -1), 0.4, rl_colors.HexColor("#C7C7CC")),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor("#F2F2F7")]),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        *color_cmds,
     ]))
     elems.append(table)
     doc.build(elems)
