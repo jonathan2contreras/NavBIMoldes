@@ -59,7 +59,7 @@ scene.add(fillLight);
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.dampingFactor = 0.1;
+controls.dampingFactor = 0.35;
 
 let renderQueued = false;
 function requestRender() {
@@ -423,7 +423,7 @@ let downX = 0, downY = 0, downT = 0;
 canvas.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; downT = Date.now(); });
 canvas.addEventListener('pointerup', (e) => {
   const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
-  if (dist > 10) { dampingFrames = 12; dampLoop(); return; }
+  if (dist > 10) { dampingFrames = 6; dampLoop(); return; }
   if (Date.now() - downT > 600 || !loaded) return;
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;

@@ -66,6 +66,8 @@
 
 - [x] (5 sep 2026) **Total de paneles etiquetados en el visor 3D**: nueva fila superior en el panel de la leyenda (`tagged-total-panel`) con "PANELES ETIQUETADOS 96 / 533 · 18%" (`tagged-total-count`, `tagged-total-pct`) y barra de progreso verde. Se calcula desde `GET /api/report/molds` (`total - sin_molde`) y se refresca al guardar/borrar etiquetas y tras el etiquetado masivo.
 
+- [x] (5 sep 2026) **Frenado suave al rotar el modelo 3D**: el visor mantenía inercia larga al soltar el ratón (OrbitControls `dampingFactor = 0.1` + 12 frames de damping). Ahora `dampingFactor = 0.35` y 6 frames (`viewer.html`): el giro se detiene de forma suave pero casi inmediata al parar el ratón, sin rotación continua residual.
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.
