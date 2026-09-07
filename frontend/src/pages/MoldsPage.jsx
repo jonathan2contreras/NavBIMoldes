@@ -194,14 +194,25 @@ export default function MoldsPage() {
                     className="flex items-center gap-3 rounded-xl border border-[#E5E5EA] px-3.5 py-3"
                   >
                     {m.photo ? (
-                      <img
-                        src={fileUrl(m.photo)}
-                        alt={`Foto del molde ${m.name}`}
-                        className="h-11 w-11 shrink-0 rounded-lg border border-[#E5E5EA] object-cover"
-                        data-testid={`mold-card-photo-${m.name}`}
-                      />
+                      <div className="relative shrink-0">
+                        <img
+                          src={fileUrl(m.photo)}
+                          alt={`Foto del molde ${m.name}`}
+                          className="h-11 w-11 rounded-lg border border-[#E5E5EA] object-cover"
+                          data-testid={`mold-card-photo-${m.name}`}
+                        />
+                        <span
+                          className="absolute -right-1 -top-1 h-4 w-4 rounded-full border-2 border-white shadow"
+                          style={{ backgroundColor: m.color }}
+                          data-testid={`mold-card-color-${m.name}`}
+                        />
+                      </div>
                     ) : (
-                      <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
+                      <span
+                        className="h-4 w-4 shrink-0 rounded-full"
+                        style={{ backgroundColor: m.color }}
+                        data-testid={`mold-card-color-${m.name}`}
+                      />
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-[#111111]">{m.name}</p>
