@@ -41,6 +41,17 @@ export const api = {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
+  uploadPdf: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd, headers: authHeaders() });
+    if (r.status === 401) {
+      handleUnauthorized();
+      throw new Error("HTTP 401");
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  },
   getObjects: (p) =>
     req(
       `/objects?search=${encodeURIComponent(p.search || "")}&molde=${encodeURIComponent(p.molde || "all")}&facade=${p.facade || "all"}&skip=${p.skip || 0}&limit=${p.limit || 50}`

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Compass, Eye, Loader2, Trash2, X } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Compass, Eye, FileText, Loader2, Trash2, X } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
 import { MoldSelect } from "./MoldSelect";
@@ -13,10 +13,6 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   const [molds, setMolds] = useState([]);
   const [molde, setMolde] = useState(obj.molde ?? null);
   const [notas, setNotas] = useState(obj.notas ?? "");
-  const [existingPhoto, setExistingPhoto] = useState(obj.photo ?? null);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const fileInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -34,30 +30,11 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
     [obj.history]
   );
 
-  const handlePhotoPick = useCallback((e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-  }, []);
-
-  const clearNewPhoto = useCallback(() => {
-    setPhotoFile(null);
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }, [photoPreview]);
-
   const handleSave = useCallback(async () => {
     setSaving(true);
     setError("");
     try {
-      let photoPath = existingPhoto;
-      if (photoFile) {
-        const up = await api.uploadPhoto(photoFile);
-        photoPath = up.path;
-      }
-      const payload = { object_name: obj.name, molde, notas: notas.trim(), photo: photoPath };
+      const payload = { object_name: obj.name, molde, notas: notas.trim(), photo: null };
       await api.saveTag(payload);
       const mold = molds.find((m) => m.name === molde) || null;
       onSaved?.({
@@ -73,7 +50,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       setError("No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [obj, molde, notas, photoFile, existingPhoto, onSaved, onClose, molds]);
+  }, [obj, molde, notas, onSaved, onClose, molds]);
 
   const handleDeleteTag = useCallback(async () => {
     setDeleting(true);
@@ -90,7 +67,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   const dims = formatDims(obj.dimensions);
   const area = formatArea(obj.dimensions);
   const selectedMold = molds.find((m) => m.name === molde) || null;
-  const hasAnyData = !!(obj.molde || obj.notas || obj.photo);
+  const hasAnyData = !!(obj.molde || obj.notas);
 
   return (
     <div className="fixed inset-0 z-50" data-testid="tag-sheet">
@@ -147,6 +124,27 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
               Medidas del molde: {selectedMold.ancho || "—"} × {selectedMold.alto || "—"} m (ancho × alto)
             </p>
           )}
+          {!!selectedMold && (selectedMold.photo || selectedMold.plano_pdf) && (
+            <div className="mt-3 flex items-center gap-3" data-testid="tag-sheet-mold-media">
+              {selectedMold.photo && (
+                <img
+                  src={fileUrl(selectedMold.photo)}
+                  alt={`Foto del molde ${selectedMold.name}`}
+                  className="h-16 w-16 shrink-0 rounded-lg border border-[#E5E5EA] object-cover"
+                  data-testid="tag-sheet-mold-photo"
+                />
+              )}
+              {selectedMold.plano_pdf && (
+                <button
+                  data-testid="tag-sheet-mold-plano-button"
+                  onClick={() => window.open(fileUrl(selectedMold.plano_pdf), "_blank", "noopener")}
+                  className="flex h-10 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-4 text-[13px] font-semibold text-[#007AFF] transition-colors hover:bg-[#F2F2F7]"
+                >
+                  <FileText size={15} /> Ver plano del molde
+                </button>
+              )}
+            </div>
+          )}
 
           <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Notas</p>
           <textarea
@@ -156,57 +154,6 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
             onChange={(e) => setNotas(e.target.value)}
             placeholder="Añadir una nota..."
             className="min-h-[80px] w-full resize-y rounded-xl bg-[#F2F2F7] px-3 py-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93] disabled:opacity-60"
-          />
-
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Foto</p>
-          {photoPreview ? (
-            <div className="flex items-center gap-3" data-testid="photo-preview">
-              <img src={photoPreview} alt="Foto adjunta" className="h-16 w-16 rounded-lg border border-[#E5E5EA] object-cover" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-[#111111]">{photoFile?.name}</p>
-                <p className="text-[11px] text-[#8E8E93]">Se adjuntará al guardar</p>
-              </div>
-              {!readOnly && (
-                <button onClick={clearNewPhoto} data-testid="photo-remove-button" className="rounded-full p-1.5 hover:bg-[#F2F2F7]">
-                  <X size={16} className="text-[#8E8E93]" />
-                </button>
-              )}
-            </div>
-          ) : existingPhoto ? (
-            <div className="flex items-center gap-3" data-testid="photo-existing">
-              <img
-                src={fileUrl(existingPhoto)}
-                alt="Foto de obra"
-                className="h-16 w-16 rounded-lg border border-[#E5E5EA] object-cover"
-              />
-              {!readOnly && (
-                <button
-                  data-testid="photo-delete-existing-button"
-                  onClick={() => setExistingPhoto(null)}
-                  className="flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#3A3A3C] hover:bg-[#F2F2F7]"
-                >
-                  <Trash2 size={14} /> Quitar foto
-                </button>
-              )}
-            </div>
-          ) : (
-            !readOnly && (
-              <button
-                data-testid="photo-attach-button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#3A3A3C] transition-colors hover:bg-[#F2F2F7]"
-              >
-                <Camera size={15} /> Adjuntar foto
-              </button>
-            )
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePhotoPick}
-            data-testid="photo-file-input"
           />
 
           {!!error && (

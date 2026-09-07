@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Layers, Loader2, X } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import { Layers, Loader2, X } from "lucide-react";
 
 import { api } from "../lib/api";
 import { MoldSelect } from "./MoldSelect";
@@ -8,9 +8,6 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
   const [molds, setMolds] = useState([]);
   const [molde, setMolde] = useState(null);
   const [notas, setNotas] = useState("");
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const fileInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,34 +24,22 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handlePhotoPick = useCallback((e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-  }, []);
-
   const handleApply = useCallback(async () => {
-    if (!molde && !notas.trim() && !photoFile) {
+    if (!molde && !notas.trim()) {
       setError("Define al menos un campo para aplicar.");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      let photoPath = null;
-      if (photoFile) {
-        const up = await api.uploadPhoto(photoFile);
-        photoPath = up.path;
-      }
-      await api.bulkSaveTags({ object_names: objectNames, molde, notas: notas.trim(), photo: photoPath });
+      await api.bulkSaveTags({ object_names: objectNames, molde, notas: notas.trim(), photo: null });
       onApplied?.();
       onClose();
     } catch {
       setError("No se pudo aplicar el etiquetado masivo. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [objectNames, molde, notas, photoFile, onApplied, onClose]);
+  }, [objectNames, molde, notas, onApplied, onClose]);
 
   return (
     <div
@@ -89,27 +74,6 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
             onChange={(e) => setNotas(e.target.value)}
             placeholder="Añadir una nota a todas las piezas seleccionadas..."
             className="min-h-[70px] w-full resize-y rounded-xl bg-[#F2F2F7] px-3 py-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
-          />
-
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Foto (opcional, misma para todas)</p>
-          {photoPreview ? (
-            <img src={photoPreview} alt="Vista previa" className="h-16 w-16 rounded-lg border border-[#E5E5EA] object-cover" data-testid="bulk-photo-preview" />
-          ) : (
-            <button
-              data-testid="bulk-photo-attach-button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#3A3A3C] hover:bg-[#F2F2F7]"
-            >
-              <Camera size={15} /> Adjuntar foto
-            </button>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handlePhotoPick}
-            data-testid="bulk-photo-file-input"
           />
 
           {!!error && (

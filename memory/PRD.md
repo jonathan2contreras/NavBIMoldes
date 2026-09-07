@@ -74,6 +74,12 @@
 - [x] (6 jun 2026) **Limpieza de datos de prueba en Reportes**: eliminado el tag de prueba `C1 C1 [6421217]` con molde inexistente `TEST_M_MOLD_B` (dejado por la suite de tests) de la colección `tags`; ya no aparece en el reporte de moldes ni en el resumen.
 - [x] (6 jun 2026) **Reporte PDF — logos centrados + recuadro de color**: (1) el membrete de los 3 logos ahora se centra horizontalmente en el folio (`hAlign="CENTER"` + `ALIGN CENTER` en `make_molds_pdf`). (2) La columna **Color** ya no muestra el texto hex: cada celda pinta un recuadro relleno con el color del molde (comandos `BACKGROUND` por celda vía `HexColor`; "—" si la pieza no tiene molde/color). Verificado con inspección del PDF generado.
 
+- [x] (7 jun 2026) **Fotos fuera + PDF de plano en moldes** (petición del usuario):
+  - (1) Eliminada la pestaña **Fotos** del nav (`AppLayout.jsx`) y su ruta/import en `App.js` (`PhotosPage.jsx` queda huérfano, sin usar).
+  - (2) Eliminado el campo **Foto** de la ficha de etiqueta (`TagSheet.jsx`) y del **etiquetado masivo** (`BulkTagModal.jsx`) — ya no se adjuntan fotos de obra a las piezas (se guarda `photo:null`).
+  - (3) En el catálogo de **Moldes** (`MoldsPage.jsx` `MoldForm`) se añadieron dos campos: **Foto del molde** (imagen, `mold-form-photo-button` → `api.uploadPhoto`) y **Plano del molde (PDF)** (`mold-form-plano-button` → nuevo `api.uploadPdf`). La tarjeta del molde muestra la miniatura de la foto (o el punto de color si no hay) y un botón **Plano** (`mold-plano-view-{name}`) que abre el PDF en pestaña nueva cuando está asignado. En `TagSheet`, al tener un molde asignado se muestran su foto y un botón **Ver plano del molde** (`tag-sheet-mold-plano-button`).
+  - Backend: `Mold`/`MoldUpsert` + `GET/POST /api/molds` amplían con `photo` y `plano_pdf`. Nuevo endpoint `POST /api/upload/pdf` (solo `application/pdf`, máx 25 MB, guarda en `bimtracker/planos/`, registro en `files`). `GET /api/files/{path}` sirve el PDF con `Content-Type: application/pdf`. Verificado con curl (upload PDF, save/list molde con campos, servir PDF 200) y screenshot (nav sin Fotos, form de molde con Subir foto/Subir PDF).
+
 ## Backlog priorizado
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
 - P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.

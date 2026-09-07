@@ -1,13 +1,12 @@
 import React from "react";
 import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Box, Camera, FileText, Layers, List, LogOut } from "lucide-react";
+import { Box, FileText, Layers, List, LogOut } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 
 const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
-  { to: "/photos", label: "Fotos", icon: Camera, testId: "tab-photos" },
   { to: "/molds", label: "Moldes", icon: Layers, testId: "tab-molds", adminOnly: true },
   { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
 ];

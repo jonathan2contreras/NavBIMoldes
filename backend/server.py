@@ -298,6 +298,8 @@ class Mold(BaseDocument):
     color: str
     ancho: Optional[float] = None
     alto: Optional[float] = None
+    photo: Optional[str] = None
+    plano_pdf: Optional[str] = None
 
 
 class MoldUpsert(BaseModel):
@@ -306,6 +308,8 @@ class MoldUpsert(BaseModel):
     color: str
     ancho: Optional[float] = None
     alto: Optional[float] = None
+    photo: Optional[str] = None
+    plano_pdf: Optional[str] = None
 
 
 class Tipo(BaseDocument):
@@ -503,7 +507,8 @@ async def delete_tipo(name: str, _admin=Depends(require_admin)):
 async def list_molds():
     molds = await fetch_molds_map()
     return {"items": [
-        {"name": m.name, "tipo": m.tipo, "color": m.color, "ancho": m.ancho, "alto": m.alto}
+        {"name": m.name, "tipo": m.tipo, "color": m.color, "ancho": m.ancho, "alto": m.alto,
+         "photo": m.photo, "plano_pdf": m.plano_pdf}
         for m in molds.values()
     ]}
 
@@ -524,9 +529,11 @@ async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
         await db.tipos.insert_one({"name": tipo})
     payload.tipo = tipo
     color = (payload.color or "").strip() or "#8E8E93"
-    mold = Mold(name=name, tipo=payload.tipo, color=color, ancho=payload.ancho, alto=payload.alto)
+    mold = Mold(name=name, tipo=payload.tipo, color=color, ancho=payload.ancho, alto=payload.alto,
+                photo=payload.photo, plano_pdf=payload.plano_pdf)
     await db.molds.update_one({"name": name}, {"$set": mold.to_mongo()}, upsert=True)
-    return {"name": mold.name, "tipo": mold.tipo, "color": mold.color, "ancho": mold.ancho, "alto": mold.alto}
+    return {"name": mold.name, "tipo": mold.tipo, "color": mold.color, "ancho": mold.ancho,
+            "alto": mold.alto, "photo": mold.photo, "plano_pdf": mold.plano_pdf}
 
 
 @api_router.delete("/molds/{name}")
@@ -566,6 +573,30 @@ async def upload_photo(file: UploadFile = File(...), _admin=Depends(require_admi
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     return {"path": result["path"]}
+
+
+@api_router.post("/upload/pdf")
+async def upload_pdf(file: UploadFile = File(...), _admin=Depends(require_admin)):
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=422, detail="Solo se permiten archivos PDF")
+    data = await file.read()
+    if len(data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="El PDF supera el límite de 25 MB")
+    path = f"{APP_NAME}/planos/{uuid.uuid4()}.pdf"
+    try:
+        result = put_object(path, data, "application/pdf")
+    except Exception as e:
+        logging.error(f"PDF upload failed: {e}")
+        raise HTTPException(status_code=502, detail="No se pudo subir el PDF. Inténtalo de nuevo.")
+    await db.files.insert_one({
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": "application/pdf",
+        "size": result.get("size", len(data)),
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"path": result["path"], "filename": file.filename}
 
 
 @api_router.get("/files/{path:path}")

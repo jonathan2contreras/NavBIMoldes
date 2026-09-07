@@ -7,7 +7,6 @@ import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import ViewerPage from "@/pages/ViewerPage";
 import ObjectsPage from "@/pages/ObjectsPage";
-import PhotosPage from "@/pages/PhotosPage";
 import MoldsPage from "@/pages/MoldsPage";
 import ReportsPage from "@/pages/ReportsPage";
 
@@ -20,7 +19,6 @@ function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<ViewerPage />} />
             <Route path="/objects" element={<ObjectsPage />} />
-            <Route path="/photos" element={<PhotosPage />} />
             <Route path="/molds" element={<MoldsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
           </Route>

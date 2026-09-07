@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Check, ChevronDown, Layers, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Camera, Check, ChevronDown, FileText, Layers, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 
-import { api } from "../lib/api";
+import { api, fileUrl } from "../lib/api";
 import { useRole } from "../context/RoleContext";
 
 export default function MoldsPage() {
@@ -13,7 +13,7 @@ export default function MoldsPage() {
   const [loading, setLoading] = useState(true);
 
   const [creatingMold, setCreatingMold] = useState(false);
-  const [moldForm, setMoldForm] = useState({ name: "", tipo: "", color: "#007AFF", ancho: "", alto: "" });
+  const [moldForm, setMoldForm] = useState({ name: "", tipo: "", color: "#007AFF", ancho: "", alto: "", photo: null, plano_pdf: null });
   const [moldSaving, setMoldSaving] = useState(false);
   const [moldError, setMoldError] = useState("");
   const [editingMold, setEditingMold] = useState(null);
@@ -51,7 +51,7 @@ export default function MoldsPage() {
   }, []);
 
   const openCreateMold = () => {
-    setMoldForm({ name: "", tipo: "", color: "#007AFF", ancho: "", alto: "" });
+    setMoldForm({ name: "", tipo: "", color: "#007AFF", ancho: "", alto: "", photo: null, plano_pdf: null });
     setMoldError("");
     setCreatingMold(true);
     setEditingMold(null);
@@ -64,6 +64,8 @@ export default function MoldsPage() {
       color: m.color || "#007AFF",
       ancho: m.ancho ?? "",
       alto: m.alto ?? "",
+      photo: m.photo ?? null,
+      plano_pdf: m.plano_pdf ?? null,
     });
     setMoldError("");
     setEditingMold(m.name);
@@ -94,6 +96,8 @@ export default function MoldsPage() {
         color: moldForm.color,
         ancho: moldForm.ancho === "" ? null : Number(moldForm.ancho),
         alto: moldForm.alto === "" ? null : Number(moldForm.alto),
+        photo: moldForm.photo || null,
+        plano_pdf: moldForm.plano_pdf || null,
       });
       setMolds((prev) => {
         const others = prev.filter((m) => m.name !== mold.name);
@@ -189,7 +193,16 @@ export default function MoldsPage() {
                     data-testid={`mold-card-${m.name}`}
                     className="flex items-center gap-3 rounded-xl border border-[#E5E5EA] px-3.5 py-3"
                   >
-                    <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
+                    {m.photo ? (
+                      <img
+                        src={fileUrl(m.photo)}
+                        alt={`Foto del molde ${m.name}`}
+                        className="h-11 w-11 shrink-0 rounded-lg border border-[#E5E5EA] object-cover"
+                        data-testid={`mold-card-photo-${m.name}`}
+                      />
+                    ) : (
+                      <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: m.color }} />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-[#111111]">{m.name}</p>
                       <p className="mt-0.5 text-xs text-[#8E8E93]">
@@ -197,6 +210,15 @@ export default function MoldsPage() {
                         {m.ancho && m.alto ? ` · ${m.ancho}×${m.alto} m` : ""}
                       </p>
                     </div>
+                    {m.plano_pdf && (
+                      <button
+                        data-testid={`mold-plano-view-${m.name}`}
+                        onClick={() => window.open(fileUrl(m.plano_pdf), "_blank", "noopener")}
+                        className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#E5E5EA] bg-white px-2.5 text-xs font-semibold text-[#007AFF] hover:bg-[#F2F2F7]"
+                      >
+                        <FileText size={13} /> Plano
+                      </button>
+                    )}
                     <button
                       data-testid={`mold-edit-${m.name}`}
                       onClick={() => openEditMold(m)}
@@ -388,6 +410,44 @@ function TipoSelect({ value, onChange, tipos, onTipoCreated, onTipoDeleted }) {
 }
 
 function MoldForm({ form, setForm, tipos, onTipoCreated, onTipoDeleted, saving, error, isNew, onCancel, onSave }) {
+  const photoInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const handlePhotoPick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    setUploadError("");
+    try {
+      const up = await api.uploadPhoto(file);
+      setForm((f) => ({ ...f, photo: up.path }));
+    } catch {
+      setUploadError("No se pudo subir la foto.");
+    } finally {
+      setUploadingPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  };
+
+  const handlePdfPick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPdf(true);
+    setUploadError("");
+    try {
+      const up = await api.uploadPdf(file);
+      setForm((f) => ({ ...f, plano_pdf: up.path }));
+    } catch {
+      setUploadError("No se pudo subir el PDF.");
+    } finally {
+      setUploadingPdf(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
+    }
+  };
+
   return (
     <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-[#F2F2F7] p-3.5" data-testid="mold-form">
       <div className="flex items-center justify-between">
@@ -446,15 +506,88 @@ function MoldForm({ form, setForm, tipos, onTipoCreated, onTipoDeleted, saving, 
         />
         <span className="text-xs font-medium text-[#8E8E93]">Color para etiquetar el panel (visor 3D)</span>
       </div>
-      {!!error && (
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[#8E8E93]">Foto del molde</span>
+        <div className="flex items-center gap-3">
+          {form.photo && (
+            <img
+              src={fileUrl(form.photo)}
+              alt="Foto del molde"
+              className="h-14 w-14 shrink-0 rounded-lg border border-[#E5E5EA] object-cover"
+              data-testid="mold-form-photo-preview"
+            />
+          )}
+          <button
+            type="button"
+            data-testid="mold-form-photo-button"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            className="flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#3A3A3C] hover:bg-[#EDEDF0] disabled:opacity-60"
+          >
+            {uploadingPhoto ? <Loader2 size={14} className="animate-spin" /> : <Camera size={15} />}
+            {form.photo ? "Cambiar foto" : "Subir foto"}
+          </button>
+          {form.photo && !uploadingPhoto && (
+            <button
+              type="button"
+              data-testid="mold-form-photo-remove"
+              onClick={() => setForm((f) => ({ ...f, photo: null }))}
+              className="rounded-full p-1.5 hover:bg-[#EDEDF0]"
+            >
+              <X size={15} className="text-[#8E8E93]" />
+            </button>
+          )}
+        </div>
+        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoPick} data-testid="mold-form-photo-input" />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[#8E8E93]">Plano del molde (PDF)</span>
+        <div className="flex items-center gap-3">
+          {form.plano_pdf && (
+            <button
+              type="button"
+              data-testid="mold-form-plano-view"
+              onClick={() => window.open(fileUrl(form.plano_pdf), "_blank", "noopener")}
+              className="flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#007AFF] hover:bg-[#EDEDF0]"
+            >
+              <FileText size={15} /> Ver plano
+            </button>
+          )}
+          <button
+            type="button"
+            data-testid="mold-form-plano-button"
+            onClick={() => pdfInputRef.current?.click()}
+            disabled={uploadingPdf}
+            className="flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#3A3A3C] hover:bg-[#EDEDF0] disabled:opacity-60"
+          >
+            {uploadingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileText size={15} />}
+            {form.plano_pdf ? "Cambiar PDF" : "Subir PDF"}
+          </button>
+          {form.plano_pdf && !uploadingPdf && (
+            <button
+              type="button"
+              data-testid="mold-form-plano-remove"
+              onClick={() => setForm((f) => ({ ...f, plano_pdf: null }))}
+              className="rounded-full p-1.5 hover:bg-[#EDEDF0]"
+            >
+              <X size={15} className="text-[#8E8E93]" />
+            </button>
+          )}
+        </div>
+        <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden" onChange={handlePdfPick} data-testid="mold-form-plano-input" />
+      </div>
+
+      {!!(error || uploadError) && (
         <p className="text-xs text-[#FF3B30]" data-testid="mold-form-error">
-          {error}
+          {error || uploadError}
         </p>
       )}
       <button
         data-testid="mold-form-save"
         onClick={onSave}
-        disabled={saving}
+        disabled={saving || uploadingPhoto || uploadingPdf}
         className="flex h-10 items-center justify-center rounded-lg bg-[#1C1C1E] text-sm font-bold text-white disabled:opacity-70"
       >
         {saving ? <Loader2 size={15} className="animate-spin" /> : "Guardar"}
