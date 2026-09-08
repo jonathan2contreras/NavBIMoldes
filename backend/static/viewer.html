@@ -6,6 +6,23 @@
 <style>
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#EDEEF2}
   #c{width:100%;height:100%;display:block;touch-action:none}
+  #hoverbar{
+    position:fixed;left:50%;bottom:88px;transform:translate(-50%,14px);
+    max-width:calc(100% - 32px);
+    display:flex;align-items:center;gap:8px;
+    padding:9px 16px;border-radius:999px;
+    background:rgba(20,22,28,.88);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 8px 24px rgba(0,0,0,.28);
+    color:#fff;font:600 14px/1.2 system-ui,-apple-system,sans-serif;
+    letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    opacity:0;pointer-events:none;
+    transition:opacity .16s ease, transform .16s ease;
+  }
+  #hoverbar.on{opacity:1;transform:translate(-50%,0)}
+  #hoverbar .dot{width:7px;height:7px;border-radius:999px;background:#2E6BD6;flex:0 0 auto}
+  #hoverbar .lbl{color:rgba(255,255,255,.55);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
@@ -13,6 +30,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="hoverbar"><span class="dot"></span><span class="lbl">Código</span><span id="hovercode"></span></div>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -84,14 +102,16 @@ window.addEventListener('resize', () => {
 
 // Materials (shared per molde color/highlight combo)
 const matCache = {};
-function matFor(tagData, highlighted) {
+function matFor(tagData, highlighted, hovered) {
   const hex = tagData && tagData.color ? hexToInt(tagData.color) : null;
-  const key = (hex !== null ? hex : 'none') + (highlighted ? '_hl' : '');
+  const key = (hex !== null ? hex : 'none') + (highlighted ? '_hl' : (hovered ? '_hv' : ''));
   if (!matCache[key]) {
     const color = hex !== null ? hex : BASE_COLOR;
     const m = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide });
     if (highlighted) {
       m.emissive = new THREE.Color(hex !== null ? color : 0x2E6BD6).multiplyScalar(0.45);
+    } else if (hovered) {
+      m.emissive = new THREE.Color(hex !== null ? color : 0x2E6BD6).multiplyScalar(0.2);
     }
     matCache[key] = m;
   }
@@ -112,6 +132,7 @@ let tags = {};
 let selectedName = null;
 let multiMode = false;
 const multiSelected = new Set();
+let hoveredName = null;
 let pendingTags = null;
 let pendingFocus = null;
 let isolation = 'all';
@@ -130,7 +151,7 @@ function isHighlighted(name) {
 function refreshMesh(name) {
   const m = meshesByName[name];
   if (!m) return;
-  m.material = matFor(tags[name] || null, isHighlighted(name));
+  m.material = matFor(tags[name] || null, isHighlighted(name), name === hoveredName);
   m.visible = isVisibleFor(name);
   renderer.shadowMap.needsUpdate = true;
   requestRender();
@@ -139,7 +160,7 @@ function refreshMesh(name) {
 function applyAll() {
   for (const mesh of meshList) {
     const key = mesh.userData.orig || mesh.name;
-    mesh.material = matFor(tags[key] || null, isHighlighted(key));
+    mesh.material = matFor(tags[key] || null, isHighlighted(key), key === hoveredName);
     mesh.visible = isVisibleFor(key);
   }
   renderer.shadowMap.needsUpdate = true;
@@ -419,9 +440,11 @@ loader.load('/api/model',
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let downX = 0, downY = 0, downT = 0;
+let pointerDown = false;
 
-canvas.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; downT = Date.now(); });
+canvas.addEventListener('pointerdown', (e) => { downX = e.clientX; downY = e.clientY; downT = Date.now(); pointerDown = true; });
 canvas.addEventListener('pointerup', (e) => {
+  pointerDown = false;
   const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
   if (dist > 10) { dampingFrames = 6; dampLoop(); return; }
   if (Date.now() - downT > 600 || !loaded) return;
@@ -445,6 +468,46 @@ canvas.addEventListener('pointerup', (e) => {
     send({ type: 'select', name });
   }
 });
+
+// Hover: fixed info bar with the piece code + soft highlight
+const hoverbar = document.getElementById('hoverbar');
+const hovercode = document.getElementById('hovercode');
+
+function setHover(name) {
+  if (name === hoveredName) return;
+  const prev = hoveredName;
+  hoveredName = name;
+  if (prev) refreshMesh(prev);
+  if (name) refreshMesh(name);
+  if (name) {
+    hovercode.textContent = name;
+    hoverbar.classList.add('on');
+  } else {
+    hoverbar.classList.remove('on');
+  }
+  canvas.style.cursor = name ? 'pointer' : '';
+}
+
+let hoverQueued = false;
+let lastMove = null;
+function processHover() {
+  hoverQueued = false;
+  if (!loaded || !lastMove || pointerDown) return;
+  pointer.x = (lastMove.x / window.innerWidth) * 2 - 1;
+  pointer.y = -(lastMove.y / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(meshList.filter((m) => m.visible), false);
+  setHover(hits.length > 0 ? (hits[0].object.userData.orig || hits[0].object.name) : null);
+}
+
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  lastMove = { x: e.clientX, y: e.clientY };
+  if (hoverQueued) return;
+  hoverQueued = true;
+  requestAnimationFrame(processHover);
+});
+canvas.addEventListener('pointerleave', () => { lastMove = null; setHover(null); });
 
 send({ type: 'ready' });
 </script>
