@@ -473,6 +473,13 @@ canvas.addEventListener('pointerup', (e) => {
 const hoverbar = document.getElementById('hoverbar');
 const hovercode = document.getElementById('hovercode');
 
+function displayName(name) {
+  if (!name) return name;
+  const parts = name.split(' ');
+  if (parts.length >= 2 && parts[0] === parts[1]) parts.splice(1, 1);
+  return parts.join(' ');
+}
+
 function setHover(name) {
   if (name === hoveredName) return;
   const prev = hoveredName;
@@ -480,7 +487,7 @@ function setHover(name) {
   if (prev) refreshMesh(prev);
   if (name) refreshMesh(name);
   if (name) {
-    hovercode.textContent = name;
+    hovercode.textContent = displayName(name);
     hoverbar.classList.add('on');
   } else {
     hoverbar.classList.remove('on');
