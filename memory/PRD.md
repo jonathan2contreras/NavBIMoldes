@@ -111,8 +111,16 @@
 - **Datos**: comparación posterior confirma paneles, moldes y conteos sin modificaciones. Se restauró exactamente la configuración anterior tras pruebas: aún no hay total manual elegido; actualmente se muestran los 533 paneles del modelo, 526 asignados y 7 pendientes. El primer valor que guarde el usuario quedará persistido hasta que lo edite de nuevo. Credenciales sin cambios. Ningún flujo/API de producto simulado.
 - **Estado**: ambas peticiones implementadas y verificadas; siguiente acción del usuario: guardar su cifra en el lápiz junto a **Total proyecto** y validar la pantalla de carga.
 
+## Cabecera de sesión + reubicación de Total proyecto (9 septiembre 2026)
+- Petición: «1.la etiqueta de \"total proyecto\" editable colocala dentro del menu reportes junto a los botones de pdf y excell 2. ajusta para que la barra de botones superior ocupe una sola linea y tenga otra linea por encima en color gris neutro de fondo donde coloque el titulo de administrador/Ususarioen el centro y la derecha el boton de salir». Usuario confirmó la distribución propuesta, incluida navegación horizontal desplazable en móviles estrechos.
+- [x] `AppLayout.jsx`: nueva franja superior de fondo gris neutro `#E5E5E5`, rol **Administrador**/**Usuario** exactamente centrado y botón de salir a la derecha. Debajo, navegación en una única fila sin wrapping, con scroll horizontal interno si falta espacio. No hay desbordamiento horizontal de página.
+- [x] `ProjectPanelTotal.jsx` ya NO está en la navegación global. Se monta exclusivamente dentro de `ReportActions.jsx`, junto a **PDF**, **Excel** y actualizar, con altura alineada. Visible a ambos roles, lápiz solo administrador. Persiste el acceso alternativo desde el KPI total del dashboard. Al abandonar Reportes se cierra el estado del editor para que no reaparezca al volver.
+- [x] No se modificaron APIs, permisos, credenciales ni el guardado del total; sus cálculos siguen aplicándose a toda la aplicación aunque el control se edite solo desde Reportes.
+- **Pruebas incrementales**: Playwright en URL pública con login real de ambos roles; 320/768/1024/1440/1920 px: título centrado (<1 px de diferencia), botones de navegación a la misma altura, salir a la derecha, fila gris encima y sin desbordamiento de página. Editor abre en su nueva ubicación y desde KPI, cancelar/Escape conservan valor, no reaparece al volver a Reportes. Descargas reales PDF/XLSX correctas; salir devuelve a login para ambos roles. Configuración de proyecto comparada antes/después e intacta. Captura: `/tmp/reports-header-layout.jpg`; detalle: `/app/test_reports/layout_reports_relocation.md`.
+- **Estado actual**: ambas modificaciones verificadas, sin incidencias nuevas. Para editar la cantidad se entra en **Reportes → Total proyecto**.
+
 ## Backlog priorizado
-- P0: sin bloqueos funcionales abiertos. Usuario debe introducir el total deseado y validar el último ajuste de carga.
+- P0: sin bloqueos funcionales abiertos. Validación visual de la nueva cabecera y distribución de Reportes por el usuario.
 - P1: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx, rutas y helpers de storage a módulos.
 - P1: refuerzo preexistente del acceso — limitación de intentos en `/api/admin/verify` y lista de orígenes CORS desde entorno; solicitar playbook de autenticación antes de modificar auth. Documentar pruebas de acceso dedicadas.
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.

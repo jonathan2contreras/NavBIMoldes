@@ -12,6 +12,7 @@ export const ProjectPanelTotal = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [saved, setSaved] = useState(false);
+  useEffect(() => () => setEditorOpen(false), [setEditorOpen]);
   useEffect(() => {
     if (editorOpen) {
       setValue(String(project?.total_panels ?? ""));
@@ -38,7 +39,7 @@ export const ProjectPanelTotal = () => {
     finally { setSaving(false); }
   };
   return <>
-    <div className="ml-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-lg bg-[#F2F2F7] px-2.5 py-1.5" data-testid="project-total-control">
+    <div className="flex min-h-10 max-w-full flex-wrap items-center gap-1.5 rounded-lg bg-[#F2F2F7] px-2.5 py-1.5" data-testid="project-total-control">
       <Layers size={13} className="shrink-0 text-[#636366]" />
       <span className="text-[11px] text-[#636366]">Total proyecto</span>
       <span className="break-all text-xs font-bold tabular-nums" data-testid="project-total-value">{project ? project.total_panels.toLocaleString("es-ES") : "—"}</span>

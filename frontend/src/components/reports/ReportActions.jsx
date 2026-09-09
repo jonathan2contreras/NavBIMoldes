@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { FileText, Grid3X3, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
+import { ProjectPanelTotal } from "../ProjectPanelTotal";
 import { BACKEND_URL } from "../../lib/api";
 
 export const ReportActions = ({ filters, disabled, fetching, refresh, updated }) => {
@@ -26,8 +27,9 @@ export const ReportActions = ({ filters, disabled, fetching, refresh, updated })
     } finally { setExporting(""); }
   };
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex min-w-0 max-w-full flex-col gap-2" data-testid="report-actions">
+      <div className="flex flex-wrap items-center gap-2" data-testid="report-actions-controls">
+        <ProjectPanelTotal />
         <Button variant="outline" className="h-10 text-[#B63229]" disabled={disabled || !!exporting} data-testid="export-pdf-button" onClick={() => download("pdf")}>
           {exporting === "pdf" ? <Loader2 className="animate-spin" /> : <FileText />} PDF
         </Button>
