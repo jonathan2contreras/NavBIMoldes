@@ -82,10 +82,32 @@
 
 - [x] (8 jun 2026) **Hover con código de pieza en el visor 3D global** (`viewer.html`): al pasar el ratón sobre una pieza se hace raycasting (throttled con `requestAnimationFrame`, ignorado mientras se arrastra la cámara o en eventos táctiles) y se muestra una **barra fija** inferior tipo pill (`#hoverbar`, glass/dark, `bottom:88px` para no chocar con los banners de ViewerPage) con el **código del objeto** (`#hovercode`). La pieza señalada se **ilumina suavemente** (`matFor(tag, highlighted, hovered)` con `emissive × 0.2`, sin alterar la selección). La barra desaparece al salir de la pieza o del canvas. El código se muestra sin duplicar el prefijo (misma lógica que `displayName` de `theme.js`: `"C1A C1A [8632279]"` → `"C1A [8632279]"`). Verificado con screenshot.
 
+## Estado actual — Dashboard de Reportes (9 septiembre 2026)
+- Petición: «añade dentro del menu reportes un dashboard dinamico con los moldes y tipos y cantidades de paneles asignados a cada molde. dame varias opciones de visualizacion».
+- Elección del usuario: resumen con indicadores y barras horizontales; distribución por tipo y tabla de detalle; tarjetas por molde ordenables por cantidad/nombre, destacando el más utilizado; matriz agrupada por tipo con subtotales y total; selector para alternar las tres vistas.
+- [x] Dashboard integrado en `/reports`, vista inicial **Barras**, alternativas **Tarjetas** y **Por tipo**. Conserva acceso para administrador/usuario y diseño visual existente.
+- [x] Indicadores: total de paneles, asignados, sin asignar y moldes utilizados. Barras y tarjetas muestran los colores reales del catálogo; incluye moldes con cero paneles sin contarlos como utilizados. Distribución circular por tipo con leyenda numérica y porcentajes; «Sin molde» se contabiliza separado de los moldes «Sin tipo».
+- [x] Tabla de detalle por molde y matriz por tipo con subtotales, total asignado, sin molde y total general. Porcentajes respecto al total filtrado. Orden por cantidad descendente o nombre natural en español; tarjetas destacan todos los moldes empatados en la cantidad máxima positiva.
+- [x] Filtros compartidos fachada/molde/tipo, incluidos Sin molde/Sin tipo y limpiar filtros. Pulsar una barra, tarjeta o fila filtra por molde; pulsar un tipo limpia el filtro de molde. Todos los indicadores, tablas y exportaciones siguen los filtros.
+- [x] Actualización manual, cada 30 segundos mientras la página está visible y al recuperar foco/visibilidad. Carga inicial, errores/reintento y fecha de actualización; las respuestas de filtros anteriores no reemplazan la selección actual. Si falla un refresco, se avisa que los datos visibles son los últimos disponibles.
+- [x] Detalle individual de paneles conservado en sección desplegable con paginación de 50 registros. Exportaciones PDF/XLSX reales y filtradas, ahora con descarga comprobada y mensaje de error si falla. Los archivos mantienen el formato existente, no incluyen capturas de los nuevos gráficos.
+- [x] Navegación adaptable sin desbordamiento en móvil, sin cambiar roles ni autenticación.
+- **Arquitectura nueva**: `ReportsPage.jsx` coordina componentes pequeños en `src/components/reports/`: `useReportsData.js`, `reportData.js`, `ReportFilters.jsx`, `ReportActions.jsx`, `ReportMetrics.jsx`, `MoldViews.jsx`, `TypeDistribution.jsx`, `MoldTables.jsx`, `PanelDetail.jsx`, `reports.css`. Reutiliza componentes UI Button/Tabs y Chip. No se modificaron el servidor, las colecciones ni las integraciones; usa GET `/api/report/molds`, `/api/molds`, `/api/tipos` y los exports existentes.
+- **Verificación**: `yarn build` correcto; screenshot inicial 1920×800 correcto; testing en `/app/test_reports/iteration_14.json`, backend **14/14** en `backend/tests/test_reports_dashboard_iter14.py`. Verificados roles, conteos, filtros, vistas, orden, paginación, actualización, descargas y anchos 320/768/1024/1440/1920. Sin errores UI/integración/diseño detectados en el dashboard. Fallos de red simulados únicamente en pruebas de recuperación; **ninguna API o flujo de la aplicación está simulado**.
+- **Datos preservados**: comprobación posterior contra la instantánea anterior: todos los paneles y asignaciones intactos; 533 total, 526 asignados, 7 sin molde, 11 moldes utilizados. Molde/tipo temporal de pruebas eliminado. Comparación por clave porque el orden de paneles con la misma marca puede variar tras reiniciar el servidor.
+- **Observaciones de pruebas fuera del alcance del dashboard**: el informe señala falta preexistente de limitación de intentos y CORS permisivo, registradas abajo para trabajo separado. Cookies httpOnly y `seed_admin` no son flujos existentes averiados: la arquitectura actual usa contraseña compartida en hash de entorno y JWT Bearer, sin cuentas admin sembradas en Mongo. No se cambió el acceso ni se realizó una auditoría de seguridad. La ausencia de `auth_testing.md` es una recomendación documental; credenciales vigentes en `memory/test_credentials.md`.
+- **Estado**: implementación y pruebas del dashboard completas; pendiente validación visual del usuario. Corrección anterior del hover permanece sin cambios.
+
 ## Backlog priorizado
+- P0: sin bloqueos funcionales detectados en el dashboard; validación del usuario pendiente.
+- P1: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx, rutas y helpers de storage a módulos.
+- P1: refuerzo preexistente del acceso — limitación de intentos en `/api/admin/verify` y lista de orígenes CORS desde entorno; solicitar playbook de autenticación antes de modificar auth. Documentar pruebas de acceso dedicadas.
 - P2: migrar @app.on_event a lifespan handlers de FastAPI.
-- P2: refactor de server.py (~1000 líneas): extraer make_molds_pdf/xlsx y helpers de storage a módulos.
 - P2: multiusuario / exportar CSV.
+- P3: vistas rápidas Norte/Sur/Este/Oeste/Planta en el visor 3D.
+- P3: deshacer último etiquetado masivo; buscador en MoldSelect.
+- P3: m² totales por molde (ancho × alto × cantidad de paneles) en Reportes para estimar materiales.
+- P3: mostrar molde asignado y color en la barra hover del visor 3D.
 
 ## Notas técnicas
 - No modificar MONGO_URL/DB_NAME. GLB en `/app/backend/static/nab3d.glb`; si se reemplaza, borrar `objects.json` para regenerar catálogo.

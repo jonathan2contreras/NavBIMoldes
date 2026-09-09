@@ -1,216 +1,61 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Compass, FileText, Grid3X3, Layers, Loader2, Shapes } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { BarChart3, LayoutGrid, ListTree, Loader2 } from "lucide-react";
+import { Button } from "../components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { useReportsData } from "../components/reports/useReportsData";
+import { getMoldRows, groupByType } from "../components/reports/reportData";
+import { ReportActions } from "../components/reports/ReportActions";
+import { ReportFilters } from "../components/reports/ReportFilters";
+import { ReportMetrics } from "../components/reports/ReportMetrics";
+import { MoldBars, MoldCards } from "../components/reports/MoldViews";
+import { TypeDistribution } from "../components/reports/TypeDistribution";
+import { MoldDetailTable, TypeMatrix } from "../components/reports/MoldTables";
+import { PanelDetail } from "../components/reports/PanelDetail";
+import "../components/reports/reports.css";
 
-import { api, BACKEND_URL } from "../lib/api";
-import { Chip } from "../components/Chip";
-import { FACADE_FILTERS, FACADE_LABELS, NO_MOLDE_COLOR, displayName, tipoLabel } from "../lib/theme";
+const VIEWS = [{ key: "bars", label: "Barras", Icon: BarChart3 }, { key: "cards", label: "Tarjetas", Icon: LayoutGrid }, { key: "matrix", label: "Por tipo", Icon: ListTree }];
 
 export default function ReportsPage() {
-  const [facade, setFacade] = useState("all");
-  const [molde, setMolde] = useState("all");
-  const [tipo, setTipo] = useState("all");
-  const [molds, setMolds] = useState([]);
-  const [tipos, setTipos] = useState([]);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [exporting, setExporting] = useState("");
+  const [filters, setFilters] = useState({ facade: "all", molde: "all", tipo: "all" });
+  const [view, setView] = useState("bars");
+  const [sort, setSort] = useState("count");
+  const { data, molds, tipos, updated, loading, fetching, error, refresh } = useReportsData(filters.facade, filters.molde, filters.tipo);
+  const rows = useMemo(() => data ? getMoldRows(data, molds, filters.molde, filters.tipo, sort) : [], [data, molds, filters.molde, filters.tipo, sort]);
+  const groups = useMemo(() => groupByType(rows, tipos), [rows, tipos]);
+  const selectMold = (molde) => setFilters((current) => ({ ...current, molde }));
+  const selectType = (tipo) => setFilters((current) => ({ ...current, tipo, molde: "all" }));
+  const selectUnassigned = () => setFilters((current) => ({ ...current, molde: "__none__", tipo: "all" }));
 
-  const fetchReport = useCallback(async (fac, mol, tip) => {
-    setLoading(true);
-    setError("");
-    try {
-      setData(await api.getMoldsReport(fac, mol, tip));
-    } catch {
-      setError("Error al generar el reporte.");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const [m, t] = await Promise.all([api.getMolds(), api.getTipos()]);
-        setMolds(m.items || []);
-        setTipos(t.items || []);
-      } catch {
-        // filters just render with base options
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    fetchReport(facade, molde, tipo);
-  }, [facade, molde, tipo, fetchReport]);
-
-  const exportReport = useCallback(
-    (format) => {
-      const url = `${BACKEND_URL}/api/report/molds/export?format=${format}&facade=${facade}&molde=${encodeURIComponent(
-        molde
-      )}&tipo=${encodeURIComponent(tipo)}`;
-      setExporting(format);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `reporte_moldes_${facade}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => setExporting(""), 800);
-    },
-    [facade, molde, tipo]
-  );
-
-  return (
-    <div className="h-full overflow-y-auto bg-white" data-testid="reports-screen">
-      <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4">
-        <h1 className="text-2xl font-extrabold text-[#111111]">Reportes</h1>
-        <p className="mt-0.5 text-[13px] text-[#636366]">Paneles y moldes asignados por fachada</p>
-
-        <div className="flex gap-2 overflow-x-auto py-3">
-          {FACADE_FILTERS.map((f) => (
-            <Chip
-              key={f.key}
-              testId={`report-facade-${f.key}`}
-              selected={facade === f.key}
-              color="#007AFF"
-              icon={f.key !== "all" ? <Compass size={13} color={facade === f.key ? "#FFFFFF" : "#007AFF"} /> : null}
-              label={f.label}
-              onClick={() => setFacade(f.key)}
-            />
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2 pb-2">
-          <div className="flex min-w-[160px] flex-1 flex-col gap-1">
-            <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-[#636366]">
-              <Layers size={12} /> Molde
-            </label>
-            <select
-              data-testid="report-filter-molde"
-              value={molde}
-              onChange={(e) => setMolde(e.target.value)}
-              className="h-10 rounded-lg border border-[#E5E5EA] bg-white px-3 text-sm font-semibold text-[#111111] outline-none"
-            >
-              <option value="all">Todos los moldes</option>
-              <option value="__none__">Sin molde</option>
-              {molds.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
+  return <div className="reports-dashboard h-full overflow-y-auto bg-white text-[#111111]" data-testid="reports-screen">
+    <div className="mx-auto w-full max-w-6xl px-4 pb-10 pt-6 sm:px-8 sm:pt-8">
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-5">
+        <div><h1 className="text-3xl font-extrabold sm:text-4xl" data-testid="report-title">Reportes</h1><p className="mt-2 text-sm text-[#636366]" data-testid="report-subtitle">Paneles de fachada · Moldes y tipos</p></div>
+        <ReportActions filters={filters} disabled={!data || fetching || !!error} fetching={fetching} refresh={refresh} updated={updated} />
+      </header>
+      <ReportFilters filters={filters} setFilters={setFilters} molds={molds} tipos={tipos} />
+      {error && <div role="alert" className="my-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-800" data-testid="report-error"><p>{error}{data && " Se muestran los últimos datos disponibles."}</p><Button variant="outline" data-testid="report-retry-button" onClick={refresh}>Reintentar</Button></div>}
+      {loading ? <div className="flex justify-center py-20" data-testid="report-loading" role="status" aria-label="Cargando reportes"><Loader2 size={30} className="animate-spin" /></div> : data && <>
+        <ReportMetrics data={data} rows={rows} />
+        {data.total === 0 && <p role="status" className="mb-5 rounded-lg bg-[#F2F2F7] p-4 text-sm text-[#636366]" data-testid="report-empty">Sin paneles para los filtros seleccionados.</p>}
+        <Tabs value={view} onValueChange={setView} className="border-t border-[#E5E5EA] pt-5">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <TabsList className="h-11 max-w-full" aria-label="Visualización del dashboard" data-testid="report-view-switcher">
+              {VIEWS.map(({ key, label, Icon }) => <TabsTrigger key={key} value={key} data-testid={`report-view-${key}`} className="h-9 gap-1.5 px-2.5 text-xs transition-[background-color,box-shadow] sm:px-4 sm:text-sm"><Icon size={15} />{label}</TabsTrigger>)}
+            </TabsList>
+            <label className="flex min-w-0 items-center gap-2 text-xs text-[#636366]" htmlFor="report-sort">Ordenar<select id="report-sort" value={sort} onChange={(e) => setSort(e.target.value)} className="report-select !h-9 !w-auto !text-xs" data-testid="report-sort"><option value="count">Mayor cantidad</option><option value="name">Nombre A–Z</option></select></label>
           </div>
-          <div className="flex min-w-[160px] flex-1 flex-col gap-1">
-            <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-[#636366]">
-              <Shapes size={12} /> Tipo
-            </label>
-            <select
-              data-testid="report-filter-tipo"
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
-              className="h-10 rounded-lg border border-[#E5E5EA] bg-white px-3 text-sm font-semibold text-[#111111] outline-none"
-            >
-              <option value="all">Todos los tipos</option>
-              <option value="__none__">Sin tipo</option>
-              {tipos.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {!!error && (
-          <p className="py-2 text-[13px] text-[#FF3B30]" data-testid="report-error">
-            {error}
-          </p>
-        )}
-
-        {loading ? (
-          <div className="flex justify-center py-16" data-testid="report-loading">
-            <Loader2 size={32} className="animate-spin text-[#1C1C1E]" />
-          </div>
-        ) : (
-          data && (
-            <>
-              <div className="mb-3 flex flex-col gap-2 rounded-xl bg-[#F2F2F7] p-3" data-testid="report-summary">
-                <p className="text-sm font-bold text-[#111111]">
-                  {data.total.toLocaleString("es-ES")} paneles &nbsp;·&nbsp; {data.con_molde.toLocaleString("es-ES")} con
-                  molde &nbsp;·&nbsp; {data.sin_molde.toLocaleString("es-ES")} sin molde
-                </p>
-                {data.resumen.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {data.resumen.map((r) => (
-                      <span
-                        key={r.molde}
-                        data-testid={`report-mold-count-${r.molde}`}
-                        className="flex h-[26px] items-center gap-1.5 rounded-full bg-white px-2.5 text-xs font-semibold text-[#3A3A3C]"
-                      >
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: r.color || NO_MOLDE_COLOR }} />
-                        {r.molde} ({tipoLabel(r.tipo)}): {r.count}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-0.5 flex gap-2">
-                  <button
-                    data-testid="export-pdf-button"
-                    onClick={() => exportReport("pdf")}
-                    disabled={!!exporting}
-                    className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#C0392B] text-[13px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-70"
-                  >
-                    {exporting === "pdf" ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
-                    Exportar PDF
-                  </button>
-                  <button
-                    data-testid="export-excel-button"
-                    onClick={() => exportReport("xlsx")}
-                    disabled={!!exporting}
-                    className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#1E7145] text-[13px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-70"
-                  >
-                    {exporting === "xlsx" ? <Loader2 size={15} className="animate-spin" /> : <Grid3X3 size={15} />}
-                    Exportar Excel
-                  </button>
-                </div>
-              </div>
-
-              <div data-testid="report-list">
-                {(data.items || []).length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 py-12" data-testid="report-empty">
-                    <Layers size={36} className="text-[#C7C7CC]" />
-                    <p className="text-[15px] font-bold text-[#111111]">Sin paneles en esta fachada</p>
-                  </div>
-                ) : (
-                  data.items.map((item) => (
-                    <div
-                      key={item.name}
-                      data-testid={`report-row-${item.name}`}
-                      className="flex min-h-[56px] items-center gap-3 border-b border-[#E5E5EA] px-1 py-3"
-                    >
-                      <span
-                        className="h-3 w-3 shrink-0 rounded-full border border-[#C7C7CC]"
-                        style={{ backgroundColor: item.color || NO_MOLDE_COLOR }}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[#111111]">{displayName(item.name)}</p>
-                        <p className="mt-0.5 truncate text-xs font-semibold text-[#8E8E93]">
-                          {item.facade && FACADE_LABELS[item.facade] ? FACADE_LABELS[item.facade] : "—"}
-                          {"  ·  "}
-                          {item.molde ? `${item.molde} · ${tipoLabel(item.tipo)}` : "Sin molde"}
-                          {item.ancho && item.alto ? `  ·  ${item.ancho}×${item.alto} m` : ""}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )
-        )}
-      </div>
+          <TabsContent value="bars" className="report-view-enter" data-testid="report-bars-panel">
+            <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <section className="min-w-0"><h2 className="mb-4 text-base font-bold md:text-lg">Paneles por molde</h2><MoldBars rows={rows} onSelect={selectMold} /></section>
+              <TypeDistribution groups={groups} data={data} onType={selectType} onUnassigned={selectUnassigned} />
+            </div>
+            <MoldDetailTable rows={rows} data={data} onSelect={selectMold} />
+          </TabsContent>
+          <TabsContent value="cards" className="report-view-enter" data-testid="report-cards-panel"><MoldCards rows={rows} total={data.total} onSelect={selectMold} /></TabsContent>
+          <TabsContent value="matrix" className="report-view-enter" data-testid="report-matrix-panel"><TypeMatrix groups={groups} data={data} onSelect={selectMold} /></TabsContent>
+        </Tabs>
+        <PanelDetail key={JSON.stringify(filters)} items={data.items || []} />
+      </>}
     </div>
-  );
+  </div>;
 }

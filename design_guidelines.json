@@ -1,154 +1,95 @@
 {
-  "app_name": "BIMTracker",
-  "personality": "1 iOS-Native Clean",
-  "personality_one_liner": "Un centro de comando limpio, nativo y utilitario que deja que el modelo 3D y los colores semánticos de estado sean los protagonistas.",
-  "color": {
+  "app_name": "BIMTracker Reports Dashboard",
+  "personality": "iOS-Native Clean Engineering Dashboard",
+  "typography": {
+    "displayFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "textFontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+    "scale": {
+      "xs": "text-xs (12px)",
+      "sm": "text-[13px]",
+      "base": "text-sm (14px)",
+      "lg": "text-[15px]",
+      "xl": "text-lg",
+      "2xl": "text-2xl",
+      "3xl": "text-3xl",
+      "4xl": "text-4xl"
+    },
+    "rules": "Use tracking-tight for large metrics (3xl/4xl). Use uppercase tracking-wide for small overlines/labels (xs). Never center-align dense data.",
+    "weights": {
+      "regular": "font-normal",
+      "semibold": "font-semibold",
+      "bold": "font-bold",
+      "extrabold": "font-extrabold"
+    }
+  },
+  "colors": {
     "surface": "#FFFFFF",
-    "onSurface": "#111111",
     "surfaceSecondary": "#F2F2F7",
+    "onSurface": "#111111",
     "onSurfaceSecondary": "#3A3A3C",
-    "surfaceTertiary": "#E5E5EA",
     "onSurfaceTertiary": "#636366",
-    "surfaceInverse": "#1C1C1E",
-    "onSurfaceInverse": "#FFFFFF",
-    "brand": "#1C1C1E",
-    "brandPrimary": "#1C1C1E",
-    "onBrandPrimary": "#FFFFFF",
-    "brandSecondary": "#3A3A3C",
-    "onBrandSecondary": "#FFFFFF",
-    "brandTertiary": "#E5E5EA",
-    "onBrandTertiary": "#111111",
-    "success": "#34C759",
-    "onSuccess": "#FFFFFF",
-    "warning": "#FF9500",
-    "onWarning": "#FFFFFF",
-    "error": "#FF3B30",
-    "onError": "#FFFFFF",
-    "info": "#007AFF",
-    "onInfo": "#FFFFFF",
-    "status_fabricado": "#007AFF",
-    "on_status_fabricado": "#FFFFFF",
-    "status_enviado": "#FF9500",
-    "on_status_enviado": "#FFFFFF",
-    "status_instalado": "#34C759",
-    "on_status_instalado": "#FFFFFF",
-    "status_entregado": "#AF52DE",
-    "on_status_entregado": "#FFFFFF",
     "border": "#E5E5EA",
     "borderStrong": "#C7C7CC",
-    "divider": "#E5E5EA"
+    "primary": "#007AFF",
+    "success": "#34C759",
+    "warning": "#FF9500",
+    "error": "#FF3B30",
+    "no_mold": "#C7C7CC"
   },
-  "typography": {
-    "displayFontFamily": "Geist",
-    "textFontFamily": "Geist",
-    "scale": {
-      "sm": 12,
-      "base": 14,
-      "lg": 16,
-      "xl": 20,
-      "2xl": 24
-    }
+  "visual enhancers": {
+    "glassmorphism": "Not recommended for this specific data-dense dashboard area. Stick to solid #FFFFFF and #F2F2F7 for maximum clarity and iOS native feel.",
+    "shadows": "Use subtle shadow-sm for active segmented control tabs and interactive mold cards on hover. Avoid heavy or muddy shadows.",
+    "radius": "rounded-xl for main cards/KPIs, rounded-lg for inputs/segmented tabs, rounded-full for badges and progress bars."
   },
-  "spacing": {
-    "rule": "Generous vertical breathing room for readability in daylight, with compact padding inside dense list rows. Touch targets strictly 44pt minimum.",
-    "xs": 4,
-    "sm": 8,
-    "md": 12,
-    "lg": 16,
-    "xl": 24,
-    "2xl": 32,
-    "3xl": 48
+  "component name": {
+    "SegmentedControl": "iOS-style view switcher. Wrapper: bg-[#F2F2F7] p-1 rounded-lg flex gap-1. Active tab: bg-white rounded-md shadow-sm text-[#111111] font-bold transition-transform. Inactive tab: text-[#636366] font-semibold hover:text-[#111111].",
+    "KPICard": "bg-[#F2F2F7] rounded-xl p-4 flex flex-col gap-1. Label: text-xs text-[#636366] uppercase font-bold tracking-wide. Value: text-3xl font-extrabold text-[#111111].",
+    "HorizontalBar": "Flex container representing distribution. Use a base div.bg-[#E5E5EA] rounded-full h-2 w-full, with an absolute inner div colored by the mold's catalog color representing the percentage.",
+    "MoldCard": "bg-white border border-[#E5E5EA] rounded-xl p-4 flex flex-col gap-2 hover:-translate-y-0.5 hover:shadow-md transition-all. If it is the most used mold, apply border-[#007AFF] and a small primary badge 'Más utilizado'.",
+    "TypeMatrixHeader": "bg-[#F2F2F7] px-3 py-2 rounded-md font-bold text-sm text-[#111111] flex justify-between mt-6 first:mt-0",
+    "MatrixRow": "flex items-center justify-between py-2.5 border-b border-[#E5E5EA] text-[13px] text-[#3A3A3C]"
   },
-  "radius_tokens": {
-    "sm": 6,
-    "md": 12,
-    "lg": 20,
-    "pill": 999
+  "grids": {
+    "kpi_grid": "grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4",
+    "card_grid": "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
   },
-  "shadow_tier": "1",
-  "navigation": "bottom_tabs",
-  "icon_set": "Ionicons",
-  "glassmorphism": {
-    "enabled": true,
-    "do's": [
-      "Use glass effect on the top floating header in the 3D Viewer screen so the model remains visible underneath.",
-      "Use glass on the bottom tab bar.",
-      "Apply subtle blur to the handle area of the tagging bottom sheet."
-    ],
-    "dont's": [
-      "Do not use glass on list rows or input fields.",
-      "Do not stack glass on top of glass in the 3D view."
-    ]
+  "layouts": {
+    "page_container": "max-w-4xl mx-auto px-4 py-6. Expand from the original max-w-3xl to 4xl to accommodate denser dashboard views.",
+    "sections": "Vertical stack with gap-6 (24px) spacing between major sections (Filters, Segmented Switcher, Active View Content).",
+    "action_bar": "Flex row containing PDF/Excel exports and a manual refresh button, placed below filters or adjacent to the switcher."
   },
-  "platform_libraries": {
-    "glass": {
-      "ios": "expo-glass-effect",
-      "android": "expo-blur",
-      "low_end_android_fallback": "solid surfaceSecondary"
-    },
-    "image": "expo-image",
-    "blur": "expo-blur",
-    "bottom_sheet": "@gorhom/bottom-sheet",
-    "animation": "react-native-reanimated",
-    "gesture": "react-native-gesture-handler"
+  "motion": {
+    "tabs": "Transition background-color and box-shadow on segmented control items.",
+    "cards": "Transition transform and box-shadow on hover for Mold Cards (duration 200ms ease-out).",
+    "views": "Apply a simple fade-in (opacity 0 to 1) when switching between dashboard views."
   },
-  "screens": [
-    {
-      "name": "Modelo 3D",
-      "purpose": "Visor interactivo del modelo BIM a pantalla completa que permite etiquetar objetos in situ.",
-      "states": {
-        "loading": "Spinner centrado con texto 'Cargando modelo BIM...'",
-        "empty": "No aplica para visor 3D.",
-        "error": "Mensaje 'Error al cargar modelo' con botón reintentar."
-      },
-      "layout": "El WebView de Three.js ocupa toda la pantalla (full-bleed). Sobre él, un header flotante de cristal (glass) muestra el título del proyecto y leyenda de colores. Al tocar un objeto en el modelo, se abre un `@gorhom/bottom-sheet` sobrepuesto que muestra el ID del objeto, 4 botones tipo píldora para los estados (Azul, Naranja, Verde, Morado) y un input multilínea de 'Observaciones'. Botón 'Guardar' fijo al fondo del bottom sheet."
-    },
-    {
-      "name": "Lista",
-      "purpose": "Directorio paginado o virtualizado de los 12,275 objetos para búsqueda rápida y filtrado por estado.",
-      "states": {
-        "loading": "Esqueleto de lista estándar.",
-        "empty": "Ilustración de plano arquitectónico con texto 'No se encontraron objetos con ese estado'.",
-        "error": "Texto de error de lectura de datos."
-      },
-      "layout": "Header con barra de búsqueda y un ScrollView horizontal debajo con chips de filtro ('Todos', 'Fabricado', 'Enviado', etc.). Debajo, un FlatList optimizado. Cada fila es una tarjeta limpia con el ID del objeto, un indicador visual (círculo) del color de su estado, y el texto de observación truncado a una línea."
-    },
-    {
-      "name": "Progreso",
-      "purpose": "Panel de estadísticas de progreso de la obra según el estado de las piezas.",
-      "states": {
-        "loading": "Spinner de carga.",
-        "empty": "Sin datos de progreso aún.",
-        "error": "Error al calcular estadísticas."
-      },
-      "layout": "Hero card superior con fondo de imagen abstracta 3D wireframe oscurecida y un indicador circular de avance general. Debajo, un grid de 2 columnas con 4 tarjetas, una por cada estado, utilizando su color respectivo (Azul, Naranja, Verde, Morado) para métricas y barras de conteo de piezas."
-    }
-  ],
-  "images": {
-    "list_empty_state": {
-      "url": "https://images.unsplash.com/photo-1721244654394-36a7bc2da288?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwyfHxjb25zdHJ1Y3Rpb24lMjBibHVlcHJpbnQlMjBhcmNoaXRlY3R1cmUlMjBidWlsZGluZyUyMGFic3RyYWN0fGVufDB8fHx8MTc4NDQwMjc2N3ww&ixlib=rb-4.1.0&q=85",
-      "alt": "Plano arquitectónico abstracto"
-    },
-    "progress_hero_bg": {
-      "url": "https://images.unsplash.com/photo-1644158767445-79390e879319?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwyfHwzRCUyMHdpcmVmcmFtZSUyMGFyY2hpdGVjdHVyZSUyMGFic3RyYWN0fGVufDB8fHx8MTc4NDQwMjc2N3ww&ixlib=rb-4.1.0&q=85",
-      "alt": "Wireframe de arquitectura 3D"
-    }
+  "accessibility": {
+    "contrast": "Ensure white text on primary/success/error colors meets 4.5:1 ratio.",
+    "test_ids": "Every interactive element MUST have a data-testid (e.g., report-view-switcher, tab-resumen, tab-tarjetas, tab-matriz, kpi-asignados, mold-card-{name}, refresh-button).",
+    "semantics": "Use proper heading levels (h2, h3) for matrix groupings."
   },
+  "media": {
+    "icons": "Use lucide-react. Suggested: BarChart2 (Resumen), LayoutGrid (Tarjetas), List (Matriz), RefreshCw (Refresh)."
+  },
+  "3d libraries": {
+    "usage": "None required for this 2D incremental dashboard."
+  },
+  "image urls": [],
   "instructions_to_main_agent": [
-    "Strict implementation of custom status colors requested by user: Fabricado = #007AFF (Azul), Enviado = #FF9500 (Naranja), Instalado = #34C759 (Verde), Entregado = #AF52DE (Morado). Map these strictly in the UI elements when representing object state.",
-    "Implement a postMessage communication bridge between the Three.js WebView and React Native to catch object selection and trigger the `@gorhom/bottom-sheet`.",
-    "The 3D viewer WebView must be wrapped to occupy `flex: 1` underneath absolute positioned UI (floating header, bottom sheet).",
-    "List View must be heavily optimized using FlatList (or FlashList if available) due to the 12,000+ objects. Do not render heavy components in list rows.",
-    "Ensure the 'Observaciones' field inside the tagging BottomSheet is a multiline TextInput.",
-    "Apply gradient-to-dark scrim over the `progress_hero_bg` image to ensure text overlay readability.",
-    "Everything must be in Spanish as requested in the prompt."
+    "Extend `ReportsPage.jsx` by introducing a state for the active view: `const [activeView, setActiveView] = useState('resumen')`.",
+    "Build a SegmentedControl component to switch between 'resumen', 'tarjetas', and 'matriz'.",
+    "Resumen View (Default): Add a KPI Grid at the top (Paneles asignados, Paneles sin asignar, Moldes utilizados). Calculate these from `data.total`, `data.con_molde`, `data.sin_molde`, and the unique molds in `data.resumen`. Below KPIs, render Horizontal Bars for each mold showing color, name, and count relative to the highest count. Keep the original detail table at the bottom of this view.",
+    "Tarjetas View: Display a responsive grid of `MoldCard`s based on `data.resumen`. Each card must show mold name, type, color dot, and panel count. Add a sort select (Sort by Count DESC / Sort by Name ASC). Highlight the card with the highest count (Más utilizado).",
+    "Matriz View: Group `data.resumen` by `tipo` (Curvo, Liso, Borde de losa). Render a table-like list where each Type has a `TypeMatrixHeader` showing the subtotal, followed by `MatrixRow`s for each mold. Add a Grand Total row at the end.",
+    "Add a manual refresh button next to the export buttons. Keep track of the last refresh time and show it as a small label (e.g., 'Actualizado 10:42').",
+    "Strictly preserve the existing iOS-Native visual language (colors #F2F2F7, #E5E5EA, #111111).",
+    "Ensure the dashboard is responsive from 320px to 1920px."
   ],
-  "haptics": {
-    "events": {
-      "object_tap_in_3d": "impactLight",
-      "status_pill_selected": "impactMedium",
-      "save_button_pressed": "notificationSuccess",
-      "tab_changed": "selection"
-    }
-  }
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You MUST NOT apply universal transition (e.g. `transition: all`). Always add transitions for specific properties.",
+    "You MUST NOT center align the app container. Text should flow naturally (left-aligned).",
+    "Create depth through layered design elements with z-index hierarchy and crisp borders.",
+    "Never use placeholder URLs or Emoji characters for icons.",
+    "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  ]
 }

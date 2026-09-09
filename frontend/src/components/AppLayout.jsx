@@ -18,7 +18,7 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
+      <nav className="flex shrink-0 flex-wrap items-center gap-1 border-b border-[#E5E5EA] bg-white px-2 py-2.5 sm:px-6" data-testid="main-nav">
         {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
           <NavLink
             key={t.to}
@@ -26,7 +26,7 @@ export default function AppLayout() {
             end={t.end}
             data-testid={t.testId}
             className={({ isActive }) =>
-              `flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${
+              `flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-2.5 text-[11px] font-semibold transition-colors sm:px-3.5 sm:text-[13px] ${
                 isActive ? "bg-[#1C1C1E] text-white" : "text-[#3A3A3C] hover:bg-[#F2F2F7]"
               }`
             }
@@ -44,7 +44,9 @@ export default function AppLayout() {
             logout();
             navigate("/login", { replace: true });
           }}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F2F2F7] transition-opacity hover:opacity-70"
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F2F2F7] transition-opacity hover:opacity-70"
         >
           <LogOut size={16} className="text-[#636366]" />
         </button>

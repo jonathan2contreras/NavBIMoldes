@@ -1,0 +1,65 @@
+{
+  "summary": "Pruebas backend+frontend del nuevo dashboard de Reportes completadas contra URL pública. Flujos principales pasan (admin/viewer, KPIs, vistas, filtros, detalle paneles, refresco, export PDF/XLSX, responsive).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/admin/verify",
+        "issue": "No hay lockout/rate-limit tras múltiples contraseñas inválidas (6 intentos consecutivos devolvieron 200 + ok:false).",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "CORS global",
+        "issue": "server.py configura allow_origins=['*'] con allow_credentials=True; no hay lista explícita de orígenes permitidos.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "Repositorio/pruebas auth",
+        "issue": "Falta /app/auth_testing.md solicitado por playbook (no encontrado)."
+      },
+      {
+        "endpoint": "/api/admin/verify",
+        "issue": "Autenticación admin se basa en token en localStorage; no existe cookie de sesión httpOnly emitida por la app."
+      },
+      {
+        "endpoint": "Backend auth bootstrap",
+        "issue": "No se encontró rutina seed_admin/idempotente para actualizar admin si cambia password hash."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reports_dashboard_iter14.py",
+    "/app/test_reports/pytest/iter14_reports_backend.xml"
+  ],
+  "action_items": [
+    "Implementar lockout/rate-limit para /api/admin/verify (p.ej. bloqueo temporal tras 5 fallos).",
+    "Restringir CORS a orígenes explícitos desde env en lugar de wildcard.",
+    "Agregar /app/auth_testing.md o actualizar documentación para que el playbook de auth sea ejecutable.",
+    "(Si requerido por seguridad) migrar sesión admin a cookie httpOnly + sameSite/secure coherente."
+  ],
+  "critical_code_review_comments": [
+    "Reports dashboard quedó modularizado y coherente con API; no se detectaron hardcodes de KPIs en UI.",
+    "useReportsData maneja refresh manual + 30s + visibilidad/focus y evita update stale con flag active (comportamiento validado).",
+    "En ReportMetrics el valor de 'Moldes utilizados' usa count>0 (correcto), mientras el texto auxiliar muestra rows.length (incluye moldes en catálogo con 0); es consistente pero puede confundir semánticamente."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reports_dashboard_iter14.py",
+    "/app/test_reports/iteration_14.json"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 pytest)",
+    "frontend": "95% (flujos críticos solicitados verificados)"
+  },
+  "test_credentials": "Admin: admin2026; Viewer: acceso por botón Usuario",
+  "seed_data_creation": "Se creó temporalmente QA_TIPO_<timestamp> y QA-ZERO-<timestamp> para validar molde con count 0 y refresh en vivo; ambos eliminados en la misma prueba.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Validado baseline real en UI/API: total 533, asignados 526, sin asignar 7, moldes usados 11; M-04=172, M-07=67. Vistas barras/tarjetas/matriz y filtros compuestos funcionan; legend click tipo limpia molde, click Sin molde fija molde=__none__ y tipo=all. Panel detail pagina 50 ítems y resetea a 1–50 al cambiar filtro. Refresh manual + intervalo 30s funcionan. Error/retry y error de export se validaron con fallos de red SIMULADOS (TEST-ONLY). Export URL propaga filtros activos correctamente.",
+  "rca of the issue": "RCA seguridad auth: (1) Sin lockout porque /api/admin/verify solo ejecuta bcrypt.checkpw y responde ok:false sin contador ni ventana temporal por IP/usuario. Repro: 6 POST consecutivos con password inválida -> misma respuesta, sin 429/403. Mitigación: contador de intentos en Redis/Mongo + expiración y backoff. (2) CORS permisivo por configuración fija allow_origins=['*'] con credentials activado; aunque middleware ecoea Origin, sigue permitiendo cualquier origen. Mitigación: lista allowlist desde env + validación estricta."
+}
