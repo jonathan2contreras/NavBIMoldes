@@ -15,6 +15,7 @@ import jwt
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated
 from datetime import datetime, timezone, timedelta
+from project_panels import ProjectPanelsService, ProjectPanelsResponse, ProjectPanelsUpdate
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -363,6 +364,8 @@ async def fetch_molds_map() -> dict:
 
 # ---------- Routes ----------
 
+project_panels = ProjectPanelsService(db, lambda: FACADE_NAMES, fetch_tags_map)
+
 @api_router.get("/")
 async def root():
     return {"message": "BIMTracker API", "objects": len(OBJECTS)}
@@ -428,6 +431,16 @@ async def verify_admin(payload: AdminVerifyRequest):
 @api_router.get("/facades/count")
 async def facades_count():
     return {"count": len(FACADES)}
+
+
+@api_router.get("/project/panels", response_model=ProjectPanelsResponse)
+async def get_project_panels():
+    return await project_panels.read()
+
+
+@api_router.put("/project/panels", response_model=ProjectPanelsResponse)
+async def update_project_panels(payload: ProjectPanelsUpdate, _admin=Depends(require_admin)):
+    return await project_panels.save(payload)
 
 
 @api_router.post("/facades")
@@ -821,19 +834,23 @@ async def upsert_tag_doc(payload: TagUpsert) -> dict:
 
 @api_router.put("/tags")
 async def upsert_tag(payload: TagUpsert, _admin=Depends(require_admin)):
-    return await upsert_tag_doc(payload)
+    async with project_panels.write_lock:
+        await project_panels.check_assignment([payload.object_name], payload.molde)
+        return await upsert_tag_doc(payload)
 
 
 @api_router.put("/tags/bulk")
 async def bulk_upsert_tags(payload: BulkTagUpsert, _admin=Depends(require_admin)):
-    names = [n for n in payload.object_names if n in NAME_SET]
+    names = list(dict.fromkeys(n for n in payload.object_names if n in NAME_SET))
     if not names:
         raise HTTPException(status_code=422, detail="Sin piezas válidas seleccionadas")
     updated = []
-    for name in names:
-        item = TagUpsert(object_name=name, molde=payload.molde, notas=payload.notas, photo=payload.photo)
-        await upsert_tag_doc(item)
-        updated.append(name)
+    async with project_panels.write_lock:
+        await project_panels.check_assignment(names, payload.molde)
+        for name in names:
+            item = TagUpsert(object_name=name, molde=payload.molde, notas=payload.notas, photo=payload.photo)
+            await upsert_tag_doc(item)
+            updated.append(name)
     return {"updated": len(updated), "object_names": updated}
 
 
@@ -890,12 +907,18 @@ async def build_molds_report(facade: str = "all", molde: str = "all", tipo: str 
             "ancho": mold.ancho if mold else None,
             "alto": mold.alto if mold else None,
         })
-    items.sort(key=lambda x: (x["facade"] or "zzz", x["mark"]))
-    total = len(items)
+    items.sort(key=lambda x: (x["facade"] or "zzz", x["mark"], x["name"]))
+    project = await project_panels.read(tags)
+    scope = "project" if facade == molde == tipo == "all" else "filtered"
+    total = project.total_panels if scope == "project" else len(items)
     return {
         "total": total,
         "con_molde": con_molde,
         "sin_molde": total - con_molde,
+        "model_total": len(items),
+        "model_unassigned": len(items) - con_molde,
+        "scope": scope,
+        "project": project.model_dump(),
         "items": items,
         "resumen": sorted(resumen.values(), key=lambda r: -r["count"]),
     }
@@ -953,9 +976,15 @@ def make_molds_pdf(data: dict, facade: str = "all", molde: str = "all", tipo: st
         Paragraph(period, styles["Normal"]),
         Spacer(1, 4 * mm),
     ]
+    pending_label = "Pendientes" if data["scope"] == "project" else "Sin molde"
     elems.append(Paragraph(
         f"Total paneles: {data['total']} &nbsp;·&nbsp; Con molde: {data['con_molde']} "
-        f"&nbsp;·&nbsp; Sin molde: {data['sin_molde']}", styles["Heading3"]))
+        f"&nbsp;·&nbsp; {pending_label}: {data['sin_molde']}", styles["Heading3"]))
+    elems.append(Paragraph(
+        f"Total del proyecto: {data['project']['total_panels']} "
+        f"({'manual' if data['project']['is_manual'] else 'según modelo'}) "
+        f"&nbsp;·&nbsp; Paneles del modelo en este reporte: {data['model_total']} "
+        f"&nbsp;·&nbsp; Sin molde en el modelo: {data['model_unassigned']}", styles["Normal"]))
     if data["resumen"]:
         summary = "   ·   ".join(
             f"{r['molde']} ({r['tipo'] or '—'}): {r['count']}"
@@ -1011,6 +1040,12 @@ def make_molds_xlsx(data: dict, facade: str = "all", molde: str = "all", tipo: s
     ws["A1"].font = Font(bold=True, size=14)
     ws.append([_filter_label(facade, molde, tipo)])
     ws.append([f"Total paneles: {data['total']}", f"Con molde: {data['con_molde']}", f"Sin molde: {data['sin_molde']}"])
+    if data["scope"] == "project":
+        ws.cell(row=3, column=3, value=f"Pendientes: {data['sin_molde']}")
+    ws.append([f"Total del proyecto: {data['project']['total_panels']}",
+               "Total manual" if data["project"]["is_manual"] else "Total según modelo",
+               f"Paneles del modelo en este reporte: {data['model_total']}",
+               f"Sin molde en el modelo: {data['model_unassigned']}"])
     if data["resumen"]:
         ws.append([f"{r['molde']} ({r['tipo'] or '—'})" for r in data["resumen"]])
         ws.append([str(r["count"]) for r in data["resumen"]])

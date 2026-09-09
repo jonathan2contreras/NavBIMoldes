@@ -3,6 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { RoleProvider } from "@/context/RoleContext";
+import { ProjectPanelsProvider } from "@/context/ProjectPanelsContext";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import ViewerPage from "@/pages/ViewerPage";
@@ -16,7 +17,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route element={<AppLayout />}>
+          <Route element={<ProjectPanelsProvider><AppLayout /></ProjectPanelsProvider>}>
             <Route path="/" element={<ViewerPage />} />
             <Route path="/objects" element={<ObjectsPage />} />
             <Route path="/molds" element={<MoldsPage />} />

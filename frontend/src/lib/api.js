@@ -23,13 +23,19 @@ async function req(path, opts = {}) {
     handleUnauthorized();
     throw new Error("HTTP 401");
   }
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) {
+    const body = await r.json().catch(() => null);
+    const message = typeof body?.detail === "string" ? body.detail : `Error de solicitud (${r.status}).`;
+    throw new Error(message);
+  }
   return r.json();
 }
 
 export const fileUrl = (path) => `${BASE}/api/files/${path}`;
 
 export const api = {
+  getProjectPanels: () => req("/project/panels"),
+  saveProjectPanels: (total_panels) => req("/project/panels", { method: "PUT", body: JSON.stringify({ total_panels }) }),
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);

@@ -1,0 +1,16 @@
+.viewer-loading-shell { container-type: size; }
+
+@container (max-height: 660px) {
+  .viewer-loading-position { padding: 12px 16px; }
+  .viewer-loading-content { gap: 12px; }
+  .viewer-loading-logos {
+    width: clamp(64px, calc(64cqh - 140px), 230px);
+    gap: 8px;
+  }
+  .viewer-loading-spinner { width: 24px; height: 24px; }
+  .viewer-loading-title, .viewer-loading-progress, .viewer-loading-size { margin-top: 8px; }
+}
+
+@container (max-height: 540px) {
+  .viewer-loading-size { display: none; }
+}

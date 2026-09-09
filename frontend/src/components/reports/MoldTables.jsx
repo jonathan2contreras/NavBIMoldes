@@ -40,7 +40,7 @@ export const TypeMatrix = ({ groups, data, onSelect }) => <section data-testid="
   </div>
   <div className="mt-6 space-y-3 border-t-2 border-[#E5E5EA] py-4 text-sm">
     <p className="flex justify-between gap-2"><span>Total asignados</span><strong data-testid="report-matrix-assigned">{number(data.con_molde)}</strong></p>
-    <p className="flex justify-between gap-2 text-[#636366]"><span>Sin molde</span><strong data-testid="report-matrix-unassigned">{number(data.sin_molde)}</strong></p>
+    <p className="flex justify-between gap-2 text-[#636366]"><span>{data.scope === "project" ? "Pendientes del proyecto" : "Sin molde"}</span><strong data-testid="report-matrix-unassigned">{number(data.sin_molde)}</strong></p>
     <p className="flex justify-between gap-2 font-bold"><span>Total general</span><span data-testid="report-matrix-total">{number(data.total)}</span></p>
   </div>
 </section>;

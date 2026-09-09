@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { PROJECT_PANELS_CHANGED } from "../../context/ProjectPanelsContext";
 
 export const useReportsData = (facade, molde, tipo) => {
   const [snapshot, setSnapshot] = useState(null);
@@ -33,14 +34,16 @@ export const useReportsData = (facade, molde, tipo) => {
     load();
     const timer = window.setInterval(refreshVisible, 30000);
     window.addEventListener("focus", refreshVisible);
+    window.addEventListener(PROJECT_PANELS_CHANGED, refresh);
     document.addEventListener("visibilitychange", refreshVisible);
     return () => {
       active = false;
       window.clearInterval(timer);
       window.removeEventListener("focus", refreshVisible);
+      window.removeEventListener(PROJECT_PANELS_CHANGED, refresh);
       document.removeEventListener("visibilitychange", refreshVisible);
     };
-  }, [facade, molde, tipo, key, revision]);
+  }, [facade, molde, tipo, key, revision, refresh]);
 
   const data = snapshot?.key === key ? snapshot.report : null;
   return { data, molds: snapshot?.molds || [], tipos: snapshot?.tipos || [],

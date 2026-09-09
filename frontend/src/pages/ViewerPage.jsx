@@ -5,8 +5,10 @@ import { AlertCircle, Hand, Loader2, MousePointerClick, Plus, Tag, X } from "luc
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { BulkTagModal } from "../components/BulkTagModal";
+import { ViewerLoading } from "../components/ViewerLoading";
 import { useRole } from "../context/RoleContext";
-import { FACADE_LABELS, LOGOS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
+import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
+import { FACADE_LABELS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
 export default function ViewerPage() {
   const { isAdmin } = useRole();
@@ -21,6 +23,7 @@ export default function ViewerPage() {
   const [sheetObj, setSheetObj] = useState(null);
   const [molds, setMolds] = useState([]);
   const [report, setReport] = useState(null);
+  const countsRequestId = useRef(0);
   const [multiMode, setMultiMode] = useState(false);
   const [multiNames, setMultiNames] = useState([]);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -35,7 +38,7 @@ export default function ViewerPage() {
   (report?.resumen || []).forEach((r) => (counts[r.molde] = r.count));
 
   const ISO_FILTERS = [
-    { key: "all", label: `Todas${report ? ` (${report.total})` : ""}` },
+    { key: "all", label: `Modelo${report ? ` (${report.model_total})` : ""}` },
     ...molds.map((m) => ({
       key: m.name,
       label: `${m.name}${report ? ` (${counts[m.name] || 0})` : ""}`,
@@ -45,7 +48,7 @@ export default function ViewerPage() {
     })),
     {
       key: "none",
-      label: `Sin molde${report ? ` (${report.sin_molde})` : ""}`,
+      label: `Sin molde${report ? ` (${report.model_unassigned})` : ""}`,
       color: NO_MOLDE_COLOR,
       accent: NO_MOLDE_COLOR,
       textOn: "#FFFFFF",
@@ -53,11 +56,13 @@ export default function ViewerPage() {
   ];
 
   const refreshCounts = useCallback(() => {
+    const id = ++countsRequestId.current;
     api
       .getMoldsReport("all")
-      .then(setReport)
+      .then((result) => { if (id === countsRequestId.current) setReport(result); })
       .catch(() => {});
   }, []);
+  const discardPendingCounts = useCallback(() => { ++countsRequestId.current; }, []);
 
   useEffect(() => {
     api
@@ -65,7 +70,19 @@ export default function ViewerPage() {
       .then((r) => setMolds(r.items || []))
       .catch(() => {});
     refreshCounts();
-  }, [refreshCounts]);
+    const visibleRefresh = () => { if (document.visibilityState === "visible") refreshCounts(); };
+    const timer = window.setInterval(visibleRefresh, 30000);
+    window.addEventListener(PROJECT_PANELS_CHANGED, refreshCounts);
+    window.addEventListener("focus", visibleRefresh);
+    document.addEventListener("visibilitychange", visibleRefresh);
+    return () => {
+      discardPendingCounts();
+      window.clearInterval(timer);
+      window.removeEventListener(PROJECT_PANELS_CHANGED, refreshCounts);
+      window.removeEventListener("focus", visibleRefresh);
+      document.removeEventListener("visibilitychange", visibleRefresh);
+    };
+  }, [refreshCounts, discardPendingCounts]);
 
   const sendCmd = useCallback((cmd, args = []) => {
     const payload = JSON.stringify({ __viewerCmd: true, cmd, args });
@@ -216,20 +233,21 @@ export default function ViewerPage() {
       <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
           {!!report && (
-            <div className="mb-2.5 flex items-center gap-3" data-testid="tagged-total-panel">
-              <div className="flex shrink-0 items-baseline gap-1.5">
+            <div className="mb-2.5 flex flex-wrap items-center gap-3" data-testid="tagged-total-panel">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-1.5">
                 <span className="text-[11px] font-bold uppercase tracking-wide text-[#636366]">Paneles etiquetados</span>
                 <span className="text-sm font-extrabold text-[#111111]" data-testid="tagged-total-count">
-                  {report.total - report.sin_molde} / {report.total}
+                  {report.con_molde} / {report.total}
                 </span>
                 <span className="text-[11px] font-bold text-[#34C759]" data-testid="tagged-total-pct">
-                  {report.total ? Math.round(((report.total - report.sin_molde) / report.total) * 100) : 0}%
+                  {report.total ? Math.round((report.con_molde / report.total) * 100) : 0}%
                 </span>
               </div>
               <div className="h-1.5 min-w-[80px] flex-1 overflow-hidden rounded-full bg-black/10">
                 <div
-                  className="h-full rounded-full bg-[#34C759] transition-all duration-300"
-                  style={{ width: `${report.total ? ((report.total - report.sin_molde) / report.total) * 100 : 0}%` }}
+                  className="h-full rounded-full bg-[#34C759] transition-[width] duration-300"
+                  data-testid="tagged-total-progress"
+                  style={{ width: `${report.total ? (report.con_molde / report.total) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -356,32 +374,7 @@ export default function ViewerPage() {
         </div>
       )}
 
-      {loading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 bg-white px-8 py-10" data-testid="viewer-loading">
-          <div className="flex flex-col items-center justify-center gap-7" data-testid="viewer-loading-logos">
-            {LOGOS.map((l) => (
-              <img
-                key={l.key}
-                src={l.src}
-                alt={l.key}
-                data-testid={`viewer-loading-logo-${l.key}`}
-                className="h-[70px] w-[230px] object-contain"
-                style={{ aspectRatio: l.ratio }}
-              />
-            ))}
-          </div>
-
-          <div className="flex flex-col items-center">
-            <Loader2 size={36} className="animate-spin text-[#1C1C1E]" />
-            <p className="mt-4 text-base font-bold text-[#111111]">Cargando modelo BIM...</p>
-            <p className="mt-1 text-[13px] text-[#8E8E93]">{progress > 0 ? `${progress}%` : "Conectando..."}</p>
-            <div className="mt-4 h-1.5 w-4/5 max-w-md overflow-hidden rounded-full bg-[#E5E5EA]">
-              <div className="h-full rounded-full bg-[#1C1C1E] transition-all" style={{ width: `${progress}%` }} />
-            </div>
-            <p className="mt-3 text-xs text-[#8E8E93]">El modelo pesa 57 MB, puede tardar un momento</p>
-          </div>
-        </div>
-      )}
+      {loading && <ViewerLoading progress={progress} />}
 
       {!!error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white px-8" data-testid="viewer-error">

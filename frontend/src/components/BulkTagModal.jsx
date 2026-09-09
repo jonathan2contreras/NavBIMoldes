@@ -35,8 +35,8 @@ export const BulkTagModal = ({ objectNames, onClose, onApplied }) => {
       await api.bulkSaveTags({ object_names: objectNames, molde, notas: notas.trim(), photo: null });
       onApplied?.();
       onClose();
-    } catch {
-      setError("No se pudo aplicar el etiquetado masivo. Inténtalo de nuevo.");
+    } catch (err) {
+      setError(err.message || "No se pudo aplicar el etiquetado masivo. Inténtalo de nuevo.");
       setSaving(false);
     }
   }, [objectNames, molde, notas, onApplied, onClose]);

@@ -3,6 +3,7 @@ import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Box, FileText, Layers, List, LogOut } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
+import { ProjectPanelTotal } from "./ProjectPanelTotal";
 
 const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
@@ -35,7 +36,8 @@ export default function AppLayout() {
             {t.label}
           </NavLink>
         ))}
-        <span className="ml-auto text-[11px] font-semibold text-[#8E8E93]" data-testid="nav-role-label">
+        <ProjectPanelTotal />
+        <span className="text-[11px] font-semibold text-[#8E8E93]" data-testid="nav-role-label">
           {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
         </span>
         <button

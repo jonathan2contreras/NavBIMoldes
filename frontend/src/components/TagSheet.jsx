@@ -46,8 +46,8 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
         alto: mold?.alto ?? null,
       });
       onClose();
-    } catch {
-      setError("No se pudo guardar. Inténtalo de nuevo.");
+    } catch (err) {
+      setError(err.message || "No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
   }, [obj, molde, notas, onSaved, onClose, molds]);

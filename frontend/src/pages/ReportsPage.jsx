@@ -36,6 +36,9 @@ export default function ReportsPage() {
       {error && <div role="alert" className="my-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-800" data-testid="report-error"><p>{error}{data && " Se muestran los últimos datos disponibles."}</p><Button variant="outline" data-testid="report-retry-button" onClick={refresh}>Reintentar</Button></div>}
       {loading ? <div className="flex justify-center py-20" data-testid="report-loading" role="status" aria-label="Cargando reportes"><Loader2 size={30} className="animate-spin" /></div> : data && <>
         <ReportMetrics data={data} rows={rows} />
+        {data.project.is_manual && <p className="mb-5 border-l-2 border-[#007AFF] pl-3 text-xs text-[#636366]" data-testid="report-total-scope">
+          {data.scope === "project" ? `Total manual: ${data.total.toLocaleString("es-ES")} · Paneles en el modelo 3D: ${data.model_total.toLocaleString("es-ES")} · Sin molde en el modelo: ${data.model_unassigned.toLocaleString("es-ES")}` : `Conteos de piezas reales en la selección · Total del proyecto: ${data.project.total_panels.toLocaleString("es-ES")}`}
+        </p>}
         {data.total === 0 && <p role="status" className="mb-5 rounded-lg bg-[#F2F2F7] p-4 text-sm text-[#636366]" data-testid="report-empty">Sin paneles para los filtros seleccionados.</p>}
         <Tabs value={view} onValueChange={setView} className="border-t border-[#E5E5EA] pt-5">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
