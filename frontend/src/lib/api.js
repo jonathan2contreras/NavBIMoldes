@@ -25,8 +25,21 @@ async function req(path, opts = {}) {
   }
   if (!r.ok) {
     const body = await r.json().catch(() => null);
-    const message = typeof body?.detail === "string" ? body.detail : `Error de solicitud (${r.status}).`;
-    throw new Error(message);
+    let message = typeof body?.detail === "string" ? body.detail : `Error de solicitud (${r.status}).`;
+    if (Array.isArray(body?.detail)) {
+      const issue = body.detail[0];
+      const field = issue?.loc?.[issue.loc.length - 1];
+      const labels = { date: "la fecha de fabricación", start_date: "la fecha de inicio", daily_capacity: "la capacidad diaria", revision: "la versión del cronograma", total_panels: "el total de paneles" };
+      message = `Revisa ${labels[field] || "los datos introducidos"}.`;
+      if (issue?.type?.startsWith("date")) message += " Introduce una fecha válida.";
+      if (issue?.type?.startsWith("int")) message += " Debe ser un número entero.";
+      if (issue?.type === "missing") message += " Este dato es obligatorio.";
+      if (issue?.ctx?.ge !== undefined) message += ` El mínimo es ${issue.ctx.ge}.`;
+      if (issue?.ctx?.le !== undefined) message += ` El máximo es ${issue.ctx.le}.`;
+    }
+    const error = new Error(message);
+    error.status = r.status;
+    throw error;
   }
   return r.json();
 }
@@ -34,6 +47,11 @@ async function req(path, opts = {}) {
 export const fileUrl = (path) => `${BASE}/api/files/${path}`;
 
 export const api = {
+  getSchedule: () => req("/schedule"),
+  generateSchedule: (body) => req("/schedule/generate", { method: "POST", body: JSON.stringify(body) }),
+  saveSchedule: (revision) => req("/schedule/save", { method: "POST", body: JSON.stringify({ revision }) }),
+  fillSchedule: (revision) => req("/schedule/fill", { method: "POST", body: JSON.stringify({ revision }) }),
+  moveSchedulePanel: (body) => req("/schedule/panel", { method: "PATCH", body: JSON.stringify(body) }),
   getProjectPanels: () => req("/project/panels"),
   saveProjectPanels: (total_panels) => req("/project/panels", { method: "PUT", body: JSON.stringify({ total_panels }) }),
   uploadPhoto: async (file) => {

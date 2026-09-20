@@ -10,6 +10,7 @@ import ViewerPage from "@/pages/ViewerPage";
 import ObjectsPage from "@/pages/ObjectsPage";
 import MoldsPage from "@/pages/MoldsPage";
 import ReportsPage from "@/pages/ReportsPage";
+import SchedulePage from "@/pages/SchedulePage";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/objects" element={<ObjectsPage />} />
             <Route path="/molds" element={<MoldsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

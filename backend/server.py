@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated
 from datetime import datetime, timezone, timedelta
 from project_panels import ProjectPanelsService, ProjectPanelsResponse, ProjectPanelsUpdate
+from scheduling.service import ScheduleService
+from scheduling.routes import create_schedule_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1093,6 +1095,23 @@ async def export_molds_report(format: str = "xlsx", facade: str = "all", molde: 
     )
 
 
+async def schedule_source():
+    tags = await fetch_tags_map()
+    molds = await fetch_molds_map()
+    project = await project_panels.read(tags)
+    panels = {}
+    for name in FACADE_NAMES:
+        tag = tags.get(name)
+        mold = molds.get(tag.molde) if tag and tag.molde else None
+        if mold:
+            panels[name] = {"object_name": name, "code": display_name(name),
+                            "molde": mold.name, "tipo": mold.tipo, "color": mold.color}
+    return {"panels": panels, "total": project.total_panels,
+            "molds": [{"name": m.name, "tipo": m.tipo, "color": m.color} for m in molds.values()]}
+
+
+schedule_service = ScheduleService(db, schedule_source)
+api_router.include_router(create_schedule_router(schedule_service, require_admin))
 app.include_router(api_router)
 
 app.add_middleware(

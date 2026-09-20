@@ -86,3 +86,6 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+archive
+(1).zip
+frontend/node_modules/.cache/default-development/3.pack
