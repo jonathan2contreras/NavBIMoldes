@@ -32,6 +32,33 @@ class SchedulePanel(BaseModel):
     tipo: Optional[str] = None
     color: str
     date: Optional[str] = None
+    floor_index: int
+    floor_label: str
+    elevation: float
+    facade: str
+    facade_label: str
+    stage_index: int
+    sequence_index: int
+    center: list[float]
+
+
+class ScheduleFloor(BaseModel):
+    index: int
+    label: str
+    elevation: float
+    model_panels: int
+
+
+class ScheduleStage(BaseModel):
+    index: int
+    floor_index: int
+    floor_label: str
+    facade: str
+    facade_label: str
+    total: int
+    scheduled: int
+    first_date: Optional[str] = None
+    finish_date: Optional[str] = None
 
 
 class ScheduleMold(BaseModel):
@@ -60,3 +87,9 @@ class ScheduleResponse(BaseModel):
     first_date: Optional[str] = None
     finish_date: Optional[str] = None
     working_day_span: int
+    strategy: str
+    needs_replan: bool
+    order_warning: Optional[str] = None
+    floors: list[ScheduleFloor]
+    stages: list[ScheduleStage]
+    awaiting_location: int

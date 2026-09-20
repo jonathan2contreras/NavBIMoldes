@@ -4,6 +4,9 @@ from fastapi import HTTPException
 from pymongo.errors import DuplicateKeyError
 from .engine import plan, move
 from .models import ScheduleResponse
+from .order import order_conflict, validate_move_order, validate_order
+from .spatial import STRICT_STRATEGY
+from .stages import stage_summaries
 
 
 class ScheduleService:
@@ -17,7 +20,7 @@ class ScheduleService:
         if record is None:
             start = date(datetime.now(timezone.utc).year, 11, 1).isoformat()
             record = {"start_date": start, "daily_capacity": 5, "revision": 0,
-                      "entries": plan(source["panels"], start, 5)}
+                      "strategy": STRICT_STRATEGY, "entries": plan(source["panels"], start, 5)}
         entries = [e for e in record["entries"] if e["object_name"] in source["panels"]
                    and source["panels"][e["object_name"]]["molde"] == e["molde"]]
         return source, record, entries
@@ -34,19 +37,36 @@ class ScheduleService:
             while day <= last:
                 span += day.weekday() != 6
                 day += timedelta(days=1)
+        strategy = record.get("strategy", "legacy_capacity")
+        conflict = order_conflict(source["panels"], entries)
+        legacy = record["revision"] > 0 and strategy != STRICT_STRATEGY
+        warning = "El cronograma guardado es anterior al orden por plantas. Aplica el orden estricto con confirmación para sustituir sus fechas." if legacy else conflict
         return ScheduleResponse(
             start_date=record["start_date"], daily_capacity=record["daily_capacity"],
             revision=record["revision"], saved=record["revision"] > 0,
             updated_at=record.get("updated_at"),
-            panels=[{**p, "date": dates.get(name)} for name, p in sorted(source["panels"].items())],
+            panels=[{**p, "date": dates.get(p["object_name"])} for p in sorted(source["panels"].values(), key=lambda p: p["sequence_index"])],
             molds=[{**m, "total": totals[m["name"]], "scheduled": scheduled[m["name"]]}
                    for m in sorted(source["molds"], key=lambda m: m["name"])],
             total_project=source["total"], schedulable=len(source["panels"]), scheduled=len(entries),
             unscheduled=len(source["panels"]) - len(entries),
-            awaiting_mold=max(0, source["total"] - len(source["panels"])),
+            awaiting_mold=max(0, source["total"] - source["eligible_count"]),
             stale_entries=len(record["entries"]) - len(entries), first_date=first,
             finish_date=finish, working_day_span=span,
+            strategy=strategy, needs_replan=legacy or bool(conflict), order_warning=warning,
+            floors=source["floors"], stages=stage_summaries(source["panels"], entries),
+            awaiting_location=source["awaiting_location"],
         )
+
+    def ensure_located(self, source):
+        if source["awaiting_location"]:
+            raise HTTPException(422, "Hay piezas con molde sin planta o fachada identificable en el modelo. Revisa su localización antes de guardar el orden estricto.")
+
+    def ensure_current(self, source, record, entries):
+        self.ensure_located(source)
+        if record.get("strategy") != STRICT_STRATEGY:
+            raise HTTPException(409, "Primero aplica el orden estricto por plantas con confirmación. Las fechas guardadas no se han cambiado.")
+        validate_order(source["panels"], entries)
 
     async def get(self):
         return self.response(*(await self.snapshot()))
@@ -54,7 +74,9 @@ class ScheduleService:
     async def write(self, source, record, entries, expected):
         if record["revision"] != expected:
             raise HTTPException(409, "El cronograma cambió en otra sesión. Actualiza antes de guardar.")
-        body = {"start_date": record["start_date"], "daily_capacity": record["daily_capacity"],
+        self.ensure_located(source)
+        validate_order(source["panels"], entries)
+        body = {"start_date": record["start_date"], "daily_capacity": record["daily_capacity"], "strategy": STRICT_STRATEGY,
                 "revision": expected + 1, "entries": entries,
                 "updated_at": datetime.now(timezone.utc).isoformat()}
         if expected == 0:
@@ -70,20 +92,24 @@ class ScheduleService:
 
     async def generate(self, payload):
         source, record, _ = await self.snapshot()
+        self.ensure_located(source)
         record = {**record, "start_date": payload.start_date.isoformat(), "daily_capacity": payload.daily_capacity}
         entries = plan(source["panels"], record["start_date"], record["daily_capacity"])
         return await self.write(source, record, entries, payload.revision)
 
     async def save(self, payload, fill=False):
         source, record, entries = await self.snapshot()
+        self.ensure_current(source, record, entries)
         if fill:
             entries = plan(source["panels"], record["start_date"], record["daily_capacity"], entries)
         return await self.write(source, record, entries, payload.revision)
 
     async def move_panel(self, payload):
         source, record, entries = await self.snapshot()
+        self.ensure_current(source, record, entries)
         panel = source["panels"].get(payload.object_name)
         if not panel:
             raise HTTPException(422, "Esta pieza no tiene un molde válido asignado. Actualiza el cronograma.")
-        entries = move(entries, panel, payload.date, record["start_date"], record["daily_capacity"])
-        return await self.write(source, record, entries, payload.revision)
+        candidate = move(entries, panel, payload.date, record["start_date"], record["daily_capacity"])
+        validate_move_order(source["panels"], entries, candidate, panel, payload.date)
+        return await self.write(source, record, candidate, payload.revision)

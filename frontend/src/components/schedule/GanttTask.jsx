@@ -8,7 +8,7 @@ export const GanttTask = ({ panel, disabled, onSelect }) => {
     className={`gantt-task ${disabled ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"}`}
     aria-disabled={false}
     style={{ borderColor: panel.color, backgroundColor: /^#[0-9a-f]{6}$/i.test(panel.color) ? `${panel.color}22` : "#F2F2F7", opacity: isDragging ? 0.3 : 1 }}
-    title={`${panel.code} · ${panel.molde} · ${dateLabel(panel.date)}`} aria-label={`${panel.code}, ${panel.molde}, ${dateLabel(panel.date)}`}
+    title={`${panel.code} · ${panel.molde} · ${panel.floor_label} · ${panel.facade_label} · ${dateLabel(panel.date)}`} aria-label={`${panel.code}, ${panel.molde}, ${panel.floor_label}, ${panel.facade_label}, ${dateLabel(panel.date)}`}
     data-testid={`gantt-panel-${panelKey(panel.object_name)}`}>
     <span className="block truncate font-bold">{panel.code.split(" [")[0]}</span><span className="block truncate text-[9px] text-[#636366]">{panel.code.match(/\[(.*?)\]/)?.[1] || "1 panel"}</span>
   </button>;

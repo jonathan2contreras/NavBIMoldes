@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 from project_panels import ProjectPanelsService, ProjectPanelsResponse, ProjectPanelsUpdate
 from scheduling.service import ScheduleService
 from scheduling.routes import create_schedule_router
+from scheduling.spatial import SpatialCatalog
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1095,18 +1096,29 @@ async def export_molds_report(format: str = "xlsx", facade: str = "all", molde: 
     )
 
 
+schedule_spatial = SpatialCatalog(lambda: GLB, node_world_matrix, read_accessor)
+
+
 async def schedule_source():
     tags = await fetch_tags_map()
     molds = await fetch_molds_map()
     project = await project_panels.read(tags)
+    located, floors = schedule_spatial.locate(FACADE_NAMES, FACADES)
     panels = {}
+    awaiting_location = 0
+    eligible_count = 0
     for name in FACADE_NAMES:
         tag = tags.get(name)
         mold = molds.get(tag.molde) if tag and tag.molde else None
         if mold:
+            eligible_count += 1
+            if name not in located:
+                awaiting_location += 1
+                continue
             panels[name] = {"object_name": name, "code": display_name(name),
-                            "molde": mold.name, "tipo": mold.tipo, "color": mold.color}
+                            "molde": mold.name, "tipo": mold.tipo, "color": mold.color, **located[name]}
     return {"panels": panels, "total": project.total_panels,
+            "floors": floors, "awaiting_location": awaiting_location, "eligible_count": eligible_count,
             "molds": [{"name": m.name, "tipo": m.tipo, "color": m.color} for m in molds.values()]}
 
 

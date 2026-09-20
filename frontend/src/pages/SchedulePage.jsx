@@ -8,6 +8,7 @@ import { ScheduleControls } from "../components/schedule/ScheduleControls";
 import { ScheduleSummary } from "../components/schedule/ScheduleSummary";
 import { GanttTimeline } from "../components/schedule/GanttTimeline";
 import { DayDetails } from "../components/schedule/DayDetails";
+import { ScheduleSequence } from "../components/schedule/ScheduleSequence";
 import "../components/schedule/schedule.css";
 
 export default function SchedulePage() {
@@ -39,10 +40,14 @@ export default function SchedulePage() {
       {data && <>
         <ScheduleControls data={data} admin={isAdmin} busy={saving} onGenerate={generate} onSave={() => mutate(() => api.saveSchedule(data.revision), "Cronograma guardado.")} onFill={() => mutate(() => api.fillSchedule(data.revision), "Pendientes programados sin mover otras piezas.")} />
         <ScheduleSummary data={data} />
+        <ScheduleSequence data={data} onSelect={goToDay} />
+        {data.order_warning && <p role="alert" className="mb-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900" data-testid="schedule-order-warning">{data.order_warning} Tus fechas permanecen sin cambios hasta confirmar el recálculo.</p>}
+        {data.awaiting_location > 0 && <p role="alert" className="mb-5 rounded-lg bg-red-50 p-3 text-sm text-red-800" data-testid="schedule-location-warning">{data.awaiting_location} paneles con molde carecen de localización verificable en el modelo. No se pueden guardar en el orden estricto.</p>}
+        {data.unscheduled > 0 && !data.needs_replan && <p className="mb-5 text-sm text-[#AE6500]" data-testid="schedule-order-pending">Cronograma incompleto: las fases posteriores están condicionadas a programar primero los paneles pendientes del recorrido.</p>}
         {data.stale_entries > 0 && <p className="mb-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900" data-testid="schedule-stale-warning">{data.stale_entries} asignaciones del cronograma ya no coinciden con el catálogo de moldes. Las piezas con un molde nuevo están pendientes de programar.</p>}
         {rangeStart && selected && <div className="grid min-w-0 gap-6 border-t border-[#E5E5EA] pt-5 xl:grid-cols-[minmax(0,1fr)_310px]">
-          <GanttTimeline data={data} selected={selected} onSelect={select} admin={isAdmin} busy={saving} onMove={move} rangeStart={rangeStart} setRangeStart={setRangeStart} />
-          <DayDetails data={data} selected={selected} onSelect={goToDay} admin={isAdmin} busy={saving} onMove={move} />
+          <GanttTimeline data={data} selected={selected} onSelect={select} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} rangeStart={rangeStart} setRangeStart={setRangeStart} />
+          <DayDetails data={data} selected={selected} onSelect={goToDay} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} />
         </div>}
       </>}
     </div>
