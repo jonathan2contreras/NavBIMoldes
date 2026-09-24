@@ -2,7 +2,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from fastapi import HTTPException
 from pymongo.errors import DuplicateKeyError
-from .engine import plan, move, phase_active
+from .engine import plan, move, phase_active, installation_late
 from .models import ScheduleResponse
 from .resources import CAPACITY_STRATEGY, validate_resources
 from .productivity import production_summary
@@ -62,6 +62,7 @@ class ScheduleService:
             awaiting_location=source["awaiting_location"],
             phase_active=phase_active(source["panels"]),
             phase_unfit=sum(1 for p in source["panels"].values() if p.get("phase_order") is not None and p["object_name"] not in dates),
+            phase_late=sum(1 for name, day in dates.items() if installation_late(source["panels"][name], day)),
             **production_summary(source["panels"], entries, record["start_date"], record["daily_capacity"]),
         )
 

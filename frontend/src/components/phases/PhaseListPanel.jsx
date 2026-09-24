@@ -43,7 +43,7 @@ export const PhaseListPanel = ({ plan, admin, onClose, onChanged, onFocus }) => 
           </section>
         ))}
       </div>
-      <p className="border-t border-[#E5E5EA] px-4 py-2 text-[11px] text-[#636366]">El cronograma usa esta lista al recalcular: cada panel dentro de su semana, en este orden.</p>
+      <p className="border-t border-[#E5E5EA] px-4 py-2 text-[11px] text-[#636366]">Las semanas son de instalación en obra. Al recalcular, la fabricación arranca en la fecha de inicio del cronograma y sigue este orden.</p>
     </aside>
   );
 };

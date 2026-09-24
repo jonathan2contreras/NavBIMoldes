@@ -116,4 +116,5 @@ class ScheduleResponse(BaseModel):
     bottleneck_mold: Optional[str] = None
     phase_active: bool = False
     phase_unfit: int = 0
+    phase_late: int = 0
     bottleneck_panels: int
