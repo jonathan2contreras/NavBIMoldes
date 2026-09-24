@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, CalendarRange, Eye, EyeOff, Hand, ListOrdered, Loader2, MousePointerClick, Plus, Tag, X } from "lucide-react";
+import { AlertCircle, CalendarRange, Eye, EyeOff, Hand, ListOrdered, MousePointerClick, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
@@ -11,7 +11,7 @@ import { groupPhases, phaseLayerMap, weekColor, weekShort } from "../lib/phases"
 import { ViewerLoading } from "../components/ViewerLoading";
 import { useRole } from "../context/RoleContext";
 import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
-import { FACADE_LABELS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
+import { NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
 export default function ViewerPage() {
   const { isAdmin } = useRole();
@@ -30,9 +30,9 @@ export default function ViewerPage() {
   const [multiMode, setMultiMode] = useState(false);
   const [multiNames, setMultiNames] = useState([]);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [facadeLoading, setFacadeLoading] = useState(null);
   const [plan, setPlan] = useState({ fronts: [], items: [] });
   const [phaseVisible, setPhaseVisible] = useState(true);
+  const [tagsVisible, setTagsVisible] = useState(true);
   const [phaseOpen, setPhaseOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const loadedRef = useRef(false);
@@ -108,6 +108,13 @@ export default function ViewerPage() {
   const togglePhaseLayer = () => {
     setPhaseVisible((v) => {
       sendCmd("setPhaseVisible", [!v]);
+      return !v;
+    });
+  };
+
+  const toggleTagsLayer = () => {
+    setTagsVisible((v) => {
+      sendCmd("setTagsVisible", [!v]);
       return !v;
     });
   };
@@ -213,21 +220,6 @@ export default function ViewerPage() {
     sendCmd("clearMultiSelection");
   };
 
-  const selectFacade = useCallback(
-    async (facade) => {
-      setFacadeLoading(facade);
-      try {
-        const r = await api.getObjectNames(facade, "all");
-        sendCmd("selectNames", [r.names || [], true]);
-      } catch {
-        // no-op
-      } finally {
-        setFacadeLoading(null);
-      }
-    },
-    [sendCmd]
-  );
-
   const handleBulkApplied = useCallback(() => {    loadTags();
     refreshCounts();
     setMultiNames([]);
@@ -313,6 +305,15 @@ export default function ViewerPage() {
               Plan de instalación
             </button>
             <button
+              data-testid="tags-layer-toggle"
+              onClick={toggleTagsLayer}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors"
+              style={tagsVisible ? { backgroundColor: "#1C1C1E", borderColor: "#1C1C1E", color: "#FFFFFF" } : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }}
+            >
+              {tagsVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+              Moldes
+            </button>
+            <button
               data-testid="phase-list-toggle"
               onClick={() => setListOpen((o) => !o)}
               className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white"
@@ -351,23 +352,6 @@ export default function ViewerPage() {
                 <span className="text-[11px] font-semibold text-[#3A3A3C]" data-testid="multi-select-hint">
                   Toca varios paneles para seleccionarlos
                 </span>
-              )}
-              {multiMode && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pl-1" data-testid="facade-select-group">
-                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-[#8E8E93]">Fachada</span>
-                  {Object.entries(FACADE_LABELS).map(([key, label]) => (
-                    <button
-                      key={key}
-                      data-testid={`facade-select-${key}`}
-                      onClick={() => selectFacade(key)}
-                      disabled={facadeLoading === key}
-                      className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white disabled:opacity-60"
-                    >
-                      {facadeLoading === key ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-                      {label}
-                    </button>
-                  ))}
-                </div>
               )}
             </div>
           )}

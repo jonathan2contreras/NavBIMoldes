@@ -132,9 +132,10 @@ let tags = {};
 // Fabrication phase layer: {name: {color, label}} drawn over the mold color without touching the mold tag.
 let phases = {};
 let phaseVisible = true;
+let tagsVisible = true;
 function shownTag(name) {
   const ph = phaseVisible && phases[name];
-  return ph ? { color: ph.color } : (tags[name] || null);
+  return ph ? { color: ph.color } : (tagsVisible && tags[name]) || null;
 }
 let selectedName = null;
 let multiMode = false;
@@ -225,6 +226,10 @@ window.viewerAPI = {
   },
   setPhaseVisible(on) {
     phaseVisible = !!on;
+    if (loaded) applyAll();
+  },
+  setTagsVisible(on) {
+    tagsVisible = !!on;
     if (loaded) applyAll();
   },
   clearSelection() {
