@@ -12,6 +12,9 @@ const tint = (hex, amount) => {
   return `#${mix(n >> 16)}${mix((n >> 8) & 255)}${mix(n & 255)}`;
 };
 
+export const weekColor = (front, index) => tint(front.color, Math.min(index * 0.22, 0.66));
+export const weekShort = (monday) => format(parseISO(monday), "d MMM", { locale: es });
+
 /** Groups the ordered list into fronts → weeks, keeping selection order inside each week. */
 export const groupPhases = (plan) =>
   plan.fronts.map((front) => {
@@ -26,7 +29,7 @@ export const phaseLayerMap = (plan) => {
   groupPhases(plan).forEach((front) =>
     front.weeks.forEach(({ week, index, items }) =>
       items.forEach((i) => {
-        map[i.object_name] = { color: tint(front.color, Math.min(index * 0.22, 0.66)), label: `${front.name} · Sem. ${weekLabel(week)}` };
+        map[i.object_name] = { color: weekColor(front, index), label: `${front.name} · Sem. ${weekLabel(week)}` };
       })
     )
   );

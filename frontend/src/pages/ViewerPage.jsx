@@ -7,7 +7,7 @@ import { TagSheet } from "../components/TagSheet";
 import { BulkTagModal } from "../components/BulkTagModal";
 import { PhaseAssignModal } from "../components/phases/PhaseAssignModal";
 import { PhaseListPanel } from "../components/phases/PhaseListPanel";
-import { phaseLayerMap } from "../lib/phases";
+import { groupPhases, phaseLayerMap, weekColor, weekShort } from "../lib/phases";
 import { ViewerLoading } from "../components/ViewerLoading";
 import { useRole } from "../context/RoleContext";
 import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
@@ -310,7 +310,7 @@ export default function ViewerPage() {
               style={phaseVisible ? { backgroundColor: "#1C1C1E", borderColor: "#1C1C1E", color: "#FFFFFF" } : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }}
             >
               {phaseVisible ? <Eye size={14} /> : <EyeOff size={14} />}
-              {phaseVisible ? "Capa fases visible" : "Capa fases oculta"}
+              Plan de instalación
             </button>
             <button
               data-testid="phase-list-toggle"
@@ -319,10 +319,16 @@ export default function ViewerPage() {
             >
               <ListOrdered size={14} /> Lista de fabricación ({plan.items.length})
             </button>
-            {phaseVisible && plan.fronts.map((f) => (
-              <span key={f.id} className="flex h-8 shrink-0 items-center gap-1.5 px-1 text-xs font-semibold text-[#3A3A3C]" data-testid={`phase-legend-${f.id}`}>
+            {phaseVisible && groupPhases(plan).map((f) => (
+              <span key={f.id} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 pl-2.5 pr-1 text-xs font-semibold text-[#3A3A3C]" data-testid={`phase-legend-${f.id}`}>
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: f.color }} />
-                {f.name} ({plan.items.filter((i) => i.front_id === f.id).length})
+                {f.name} ({f.weeks.reduce((n, w) => n + w.items.length, 0)})
+                {f.weeks.map((w) => (
+                  <span key={w.week} className="flex h-6 items-center gap-1 rounded-full bg-[#F2F2F7] px-2 text-[11px]" title={`Semana del ${weekShort(w.week)} · ${w.items.length} paneles`} data-testid={`phase-legend-week-${f.id}-${w.week}`}>
+                    <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: weekColor(f, w.index) }} />
+                    Sem. {weekShort(w.week)} ({w.items.length})
+                  </span>
+                ))}
               </span>
             ))}
           </div>
