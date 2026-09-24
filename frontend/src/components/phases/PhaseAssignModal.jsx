@@ -91,7 +91,7 @@ export const PhaseAssignModal = ({ objectNames, plan, onClose, onChanged, onAssi
             {day && <p className="mt-1.5 text-xs font-semibold text-[#007AFF]" data-testid="phase-week-label">Semana del {weekLabel(weekMonday(day))} (lun–sáb)</p>}
           </div>
 
-          <p className="text-xs text-[#636366]">Las piezas se añaden al final de la lista de fabricación en el orden en que las seleccionaste. Su etiqueta de molde no cambia.</p>
+          <p className="text-xs text-[#636366]">Las piezas se añaden al final de la lista de instalación en el orden en que las seleccionaste. Su etiqueta de molde no cambia.</p>
           {!!error && <p className="text-[13px] text-[#FF3B30]" data-testid="phase-assign-error">{error}</p>}
         </div>
 

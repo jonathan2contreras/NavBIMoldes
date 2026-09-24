@@ -318,7 +318,7 @@ export default function ViewerPage() {
               onClick={() => setListOpen((o) => !o)}
               className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white"
             >
-              <ListOrdered size={14} /> Lista de fabricación ({plan.items.length})
+              <ListOrdered size={14} /> Lista de instalación ({plan.items.length})
             </button>
             {phaseVisible && groupPhases(plan).map((f) => (
               <span key={f.id} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 pl-2.5 pr-1 text-xs font-semibold text-[#3A3A3C]" data-testid={`phase-legend-${f.id}`}>

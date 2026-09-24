@@ -14,7 +14,7 @@ export const PhaseListPanel = ({ plan, admin, onClose, onChanged, onFocus }) => 
   return (
     <aside className="absolute bottom-4 right-4 top-36 z-40 flex w-[340px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-xl" data-testid="phase-list-panel">
       <div className="flex items-center justify-between border-b border-[#E5E5EA] px-4 py-3">
-        <div className="flex items-center gap-2"><ListOrdered size={17} /><p className="text-sm font-bold">Lista de fabricación · {plan.items.length}</p></div>
+        <div className="flex items-center gap-2"><ListOrdered size={17} /><p className="text-sm font-bold">Lista de instalación · {plan.items.length}</p></div>
         <button onClick={onClose} className="rounded-full p-1 hover:bg-[#F2F2F7]" data-testid="phase-list-close"><X size={17} className="text-[#8E8E93]" /></button>
       </div>
       {!!error && <p className="px-4 pt-2 text-xs text-[#FF3B30]">{error}</p>}
