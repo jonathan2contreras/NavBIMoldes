@@ -18,6 +18,7 @@ from datetime import datetime, timezone, timedelta
 from project_panels import ProjectPanelsService, ProjectPanelsResponse, ProjectPanelsUpdate
 from scheduling.service import ScheduleService
 from scheduling.routes import create_schedule_router
+from scheduling.export import create_export_router
 from scheduling.spatial import SpatialCatalog
 from scheduling.phases import PhaseStore, create_phase_router
 
@@ -1135,6 +1136,7 @@ async def schedule_source():
 
 
 schedule_service = ScheduleService(db, schedule_source)
+api_router.include_router(create_export_router(schedule_service))
 api_router.include_router(create_schedule_router(schedule_service, require_admin))
 api_router.include_router(create_phase_router(phase_store, lambda: FACADE_NAMES, require_admin))
 app.include_router(api_router)

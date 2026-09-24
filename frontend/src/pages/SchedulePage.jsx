@@ -10,6 +10,7 @@ import { GanttTimeline } from "../components/schedule/GanttTimeline";
 import { DayDetails } from "../components/schedule/DayDetails";
 import { ScheduleBoard } from "../components/schedule/ScheduleBoard";
 import { ScheduleProduction } from "../components/schedule/ScheduleProduction";
+import { ScheduleExport } from "../components/schedule/ScheduleExport";
 import "../components/schedule/schedule.css";
 
 export default function SchedulePage() {
@@ -34,7 +35,7 @@ export default function SchedulePage() {
   return <div className="schedule-page h-full overflow-y-auto bg-white text-[#111111]" data-testid="schedule-screen">
     <div className="mx-auto w-full max-w-[1600px] px-4 pb-10 pt-6 sm:px-7 sm:pt-8">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-extrabold sm:text-4xl" data-testid="schedule-title">Cronograma</h1><p className="mt-2 text-sm text-[#636366]">Plan de fabricación · Paneles por molde</p></div>
-        <div className="flex items-center gap-3"><span className={`text-xs font-semibold ${data?.saved ? "text-green-700" : "text-[#AE6500]"}`} data-testid="schedule-save-state">{data ? data.saved ? "Cronograma guardado" : "Propuesta inicial · sin guardar" : ""}</span><Button variant="outline" size="icon" disabled={loading || saving} onClick={refresh} title="Actualizar cronograma" aria-label="Actualizar cronograma" data-testid="schedule-refresh"><RefreshCw className={loading ? "animate-spin" : ""} /></Button></div>
+        <div className="flex items-center gap-3"><span className={`text-xs font-semibold ${data?.saved ? "text-green-700" : "text-[#AE6500]"}`} data-testid="schedule-save-state">{data ? data.saved ? "Cronograma guardado" : "Propuesta inicial · sin guardar" : ""}</span><ScheduleExport /><Button variant="outline" size="icon" disabled={loading || saving} onClick={refresh} title="Actualizar cronograma" aria-label="Actualizar cronograma" data-testid="schedule-refresh"><RefreshCw className={loading ? "animate-spin" : ""} /></Button></div>
       </header>
       {error && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-800" data-testid="schedule-error"><p>{error}</p><Button variant="outline" disabled={saving} onClick={refresh} data-testid="schedule-retry">Actualizar</Button></div>}
       {notice && <p role="status" className="mb-4 flex items-center gap-2 text-xs text-green-700" data-testid="schedule-notice"><Check size={14} />{notice}</p>}
