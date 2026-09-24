@@ -3,7 +3,7 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensor
 import { ChevronLeft, ChevronRight, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "../ui/button";
 import { GanttCell } from "./GanttTask";
-import { dateLabel, panelKey, shiftDay, sunday } from "./dates";
+import { areaLabel, dateLabel, panelKey, shiftDay, sunday } from "./dates";
 
 export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, rangeStart, setRangeStart }) => {
   const [length, setLength] = useState(14);
@@ -16,10 +16,10 @@ export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, r
     data.panels.forEach((panel) => { if (!first.has(panel.molde)) first.set(panel.molde, panel.sequence_index); });
     return [...data.molds].sort((a, b) => ((first.get(a.name) ?? Infinity) - (first.get(b.name) ?? Infinity)) || a.name.localeCompare(b.name, "es", { numeric: true }));
   }, [data.panels, data.molds]);
-  const { cells, counts } = useMemo(() => {
-    const cells = new Map(), counts = {};
-    data.panels.forEach((p) => { if (p.date) { cells.set(`${p.molde}|${p.date}`, p); counts[p.date] = (counts[p.date] || 0) + 1; } });
-    return { cells, counts };
+  const { cells, counts, areas } = useMemo(() => {
+    const cells = new Map(), counts = {}, areas = {};
+    data.panels.forEach((p) => { if (p.date) { cells.set(`${p.molde}|${p.date}`, p); counts[p.date] = (counts[p.date] || 0) + 1; areas[p.date] = (areas[p.date] || 0) + (p.area || 0); } });
+    return { cells, counts, areas };
   }, [data.panels]);
   const endDrag = async ({ active, over }) => {
     setDrag(null);
@@ -54,6 +54,8 @@ export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, r
           </React.Fragment>)}
           <div className="gantt-label border-t-2 text-xs font-bold">Paneles / día</div>
           {days.map((day) => <button key={day} data-testid={`gantt-day-count-${day}`} className={`gantt-total ${sunday(day) ? "gantt-rest" : ""}`} onClick={() => onSelect(day)}>{counts[day] || 0}<span className="font-normal text-[#8E8E93]"> / {sunday(day) ? 0 : data.daily_capacity}</span></button>)}
+          <div className="gantt-label text-xs font-bold">m² / día</div>
+          {days.map((day) => <div key={day} data-testid={`gantt-day-area-${day}`} className={`gantt-total flex items-center justify-center text-[#007AFF] ${sunday(day) ? "gantt-rest" : ""}`}>{areas[day] ? areaLabel(areas[day]) : "—"}</div>)}
         </div>
       </div>
       <DragOverlay dropAnimation={null}>{drag && <div className="rounded border-2 bg-white px-3 py-2 text-xs font-bold shadow-lg" style={{ borderColor: drag.color }} data-testid="gantt-drag-preview">{drag.code}</div>}</DragOverlay>

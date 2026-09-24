@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Hand, Loader2, MousePointerClick, Plus, Tag, X } from "lucide-react";
+import { AlertCircle, CalendarRange, Eye, EyeOff, Hand, ListOrdered, Loader2, MousePointerClick, Plus, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { BulkTagModal } from "../components/BulkTagModal";
+import { PhaseAssignModal } from "../components/phases/PhaseAssignModal";
+import { PhaseListPanel } from "../components/phases/PhaseListPanel";
+import { phaseLayerMap } from "../lib/phases";
 import { ViewerLoading } from "../components/ViewerLoading";
 import { useRole } from "../context/RoleContext";
 import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
@@ -28,6 +31,10 @@ export default function ViewerPage() {
   const [multiNames, setMultiNames] = useState([]);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [facadeLoading, setFacadeLoading] = useState(null);
+  const [plan, setPlan] = useState({ fronts: [], items: [] });
+  const [phaseVisible, setPhaseVisible] = useState(true);
+  const [phaseOpen, setPhaseOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -88,6 +95,22 @@ export default function ViewerPage() {
     const payload = JSON.stringify({ __viewerCmd: true, cmd, args });
     iframeRef.current?.contentWindow?.postMessage(payload, "*");
   }, []);
+
+  useEffect(() => {
+    api.getPhases().then(setPlan).catch(() => {});
+  }, []);
+
+  // The phase layer is resent whenever the list changes or the model finishes loading.
+  useEffect(() => {
+    if (!loading) sendCmd("applyPhases", [phaseLayerMap(plan)]);
+  }, [plan, loading, sendCmd]);
+
+  const togglePhaseLayer = () => {
+    setPhaseVisible((v) => {
+      sendCmd("setPhaseVisible", [!v]);
+      return !v;
+    });
+  };
 
   useEffect(() => {
     if (!focus) return;
@@ -279,6 +302,30 @@ export default function ViewerPage() {
               );
             })}
           </div>
+          <div className="mt-2 flex items-center gap-2 overflow-x-auto border-t border-white/60 pt-2" data-testid="phase-layer-bar">
+            <button
+              data-testid="phase-layer-toggle"
+              onClick={togglePhaseLayer}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors"
+              style={phaseVisible ? { backgroundColor: "#1C1C1E", borderColor: "#1C1C1E", color: "#FFFFFF" } : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }}
+            >
+              {phaseVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+              {phaseVisible ? "Capa fases visible" : "Capa fases oculta"}
+            </button>
+            <button
+              data-testid="phase-list-toggle"
+              onClick={() => setListOpen((o) => !o)}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white"
+            >
+              <ListOrdered size={14} /> Lista de fabricación ({plan.items.length})
+            </button>
+            {phaseVisible && plan.fronts.map((f) => (
+              <span key={f.id} className="flex h-8 shrink-0 items-center gap-1.5 px-1 text-xs font-semibold text-[#3A3A3C]" data-testid={`phase-legend-${f.id}`}>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: f.color }} />
+                {f.name} ({plan.items.filter((i) => i.front_id === f.id).length})
+              </span>
+            ))}
+          </div>
           {isAdmin && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/60 pt-2">
               <button
@@ -337,6 +384,13 @@ export default function ViewerPage() {
             >
               <Tag size={14} /> Etiquetar
             </button>
+            <button
+              data-testid="multi-select-phase-button"
+              onClick={() => setPhaseOpen(true)}
+              className="flex h-[34px] items-center gap-1.5 rounded-full border border-[#1C1C1E] px-3 text-xs font-bold text-[#1C1C1E]"
+            >
+              <CalendarRange size={14} /> Asignar fase
+            </button>
             <button onClick={clearMultiSelection} data-testid="multi-select-clear-button">
               <X size={20} className="text-[#8E8E93]" />
             </button>
@@ -391,6 +445,18 @@ export default function ViewerPage() {
       )}
 
       {sheetObj && <TagSheet obj={sheetObj} onClose={closeSheet} onSaved={handleSaved} />}
+      {listOpen && (
+        <PhaseListPanel plan={plan} admin={isAdmin} onClose={() => setListOpen(false)} onChanged={setPlan} onFocus={(name) => sendCmd("focusObject", [name])} />
+      )}
+      {phaseOpen && (
+        <PhaseAssignModal
+          objectNames={multiNames}
+          plan={plan}
+          onClose={() => setPhaseOpen(false)}
+          onChanged={setPlan}
+          onAssigned={clearMultiSelection}
+        />
+      )}
       {bulkOpen && (
         <BulkTagModal objectNames={multiNames} onClose={() => setBulkOpen(false)} onApplied={handleBulkApplied} />
       )}

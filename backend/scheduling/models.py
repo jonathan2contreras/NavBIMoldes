@@ -40,6 +40,11 @@ class SchedulePanel(BaseModel):
     stage_index: int
     sequence_index: int
     center: list[float]
+    area: float = 0.0
+    phase_order: Optional[int] = None
+    week: Optional[str] = None
+    front: Optional[str] = None
+    front_color: Optional[str] = None
 
 
 class ScheduleFloor(BaseModel):
@@ -109,4 +114,6 @@ class ScheduleResponse(BaseModel):
     limited_capacity_days: int
     manual_gap_days: int
     bottleneck_mold: Optional[str] = None
+    phase_active: bool = False
+    phase_unfit: int = 0
     bottleneck_panels: int

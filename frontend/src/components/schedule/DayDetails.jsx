@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import { DayPanelItem } from "./DayPanelItem";
-import { dateLabel, sunday } from "./dates";
+import { areaLabel, dateLabel, dayArea, sunday } from "./dates";
 
 export const DayDetails = ({ data, selected, onSelect, admin, busy, onMove }) => {
   const [query, setQuery] = useState("");
@@ -27,6 +27,7 @@ export const DayDetails = ({ data, selected, onSelect, admin, busy, onMove }) =>
     <div className="space-y-2" data-testid="schedule-day-panels">
       {panels.map((p) => <DayPanelItem key={`${p.object_name}|${p.date}`} panel={p} admin={admin} busy={busy} start={data.start_date} onMove={onMove} />)}
       {!panels.length && <p className="py-6 text-sm text-[#8E8E93]" data-testid="schedule-day-empty">No hay paneles programados.</p>}
+      {panels.length > 0 && <p className="flex justify-between border-t border-[#E5E5EA] pt-2 text-sm font-bold" data-testid="schedule-day-area-total"><span>Total del día</span><span className="text-[#007AFF]">{areaLabel(dayArea(panels))}</span></p>}
     </div>
     {admin && <section className="mt-5 space-y-2 border-t border-[#E5E5EA] pt-4" data-testid="schedule-add-panel">
       <h3 className="text-sm font-bold">Añadir panel pendiente</h3>

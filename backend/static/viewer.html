@@ -129,6 +129,13 @@ function edgesFor(geom) {
 const meshesByName = {};
 const meshList = [];
 let tags = {};
+// Fabrication phase layer: {name: {color, label}} drawn over the mold color without touching the mold tag.
+let phases = {};
+let phaseVisible = true;
+function shownTag(name) {
+  const ph = phaseVisible && phases[name];
+  return ph ? { color: ph.color } : (tags[name] || null);
+}
 let selectedName = null;
 let multiMode = false;
 const multiSelected = new Set();
@@ -151,7 +158,7 @@ function isHighlighted(name) {
 function refreshMesh(name) {
   const m = meshesByName[name];
   if (!m) return;
-  m.material = matFor(tags[name] || null, isHighlighted(name), name === hoveredName);
+  m.material = matFor(shownTag(name), isHighlighted(name), name === hoveredName);
   m.visible = isVisibleFor(name);
   renderer.shadowMap.needsUpdate = true;
   requestRender();
@@ -160,7 +167,7 @@ function refreshMesh(name) {
 function applyAll() {
   for (const mesh of meshList) {
     const key = mesh.userData.orig || mesh.name;
-    mesh.material = matFor(tags[key] || null, isHighlighted(key), key === hoveredName);
+    mesh.material = matFor(shownTag(key), isHighlighted(key), key === hoveredName);
     mesh.visible = isVisibleFor(key);
   }
   renderer.shadowMap.needsUpdate = true;
@@ -211,6 +218,14 @@ window.viewerAPI = {
   setTag(name, tagData) {
     if (tagData) tags[name] = tagData; else delete tags[name];
     refreshMesh(name);
+  },
+  applyPhases(map) {
+    phases = map || {};
+    if (loaded) applyAll();
+  },
+  setPhaseVisible(on) {
+    phaseVisible = !!on;
+    if (loaded) applyAll();
   },
   clearSelection() {
     const prev = selectedName;
@@ -487,7 +502,9 @@ function setHover(name) {
   if (prev) refreshMesh(prev);
   if (name) refreshMesh(name);
   if (name) {
-    hovercode.textContent = displayName(name);
+    const molde = tags[name] && tags[name].molde;
+    const phase = phaseVisible && phases[name] && phases[name].label;
+    hovercode.textContent = [displayName(name), molde, phase].filter(Boolean).join(' · ');
     hoverbar.classList.add('on');
   } else {
     hoverbar.classList.remove('on');
