@@ -1,5 +1,5 @@
 """Shareable exports (Excel / PDF) of the current schedule and the installation plan."""
-from datetime import date as CalendarDate
+from datetime import date as CalendarDate, timedelta
 from io import BytesIO
 
 from fastapi import APIRouter, HTTPException
@@ -91,6 +91,78 @@ def to_pdf(summary, schedule_rows, plan_rows):
     return out.getvalue()
 
 
+GANTT_DAYS = 14
+
+
+def tint(hex_color, alpha=0.2):
+    """Mold color blended toward white, like the on-screen Gantt cells."""
+    base = colors.HexColor(hex_color) if isinstance(hex_color, str) and len(hex_color) == 7 else colors.HexColor("#F2F2F7")
+    return colors.Color(1 - (1 - base.red) * alpha, 1 - (1 - base.green) * alpha, 1 - (1 - base.blue) * alpha)
+
+
+def to_gantt_pdf(data):
+    """Mold rows × day columns, one page per block of GANTT_DAYS days."""
+    panels = [p for p in data["panels"] if p.get("date")]
+    cells = {(p["molde"], p["date"]): p for p in panels}
+    first = {}
+    for p in data["panels"]:
+        first.setdefault(p["molde"], p.get("sequence_index", 0))
+    molds = sorted(data["molds"], key=lambda m: (first.get(m["name"], float("inf")), m["name"]))
+    styles = getSampleStyleSheet()
+    out = BytesIO()
+    doc = SimpleDocTemplate(out, pagesize=landscape(A4), leftMargin=1 * cm, rightMargin=1 * cm,
+                            topMargin=1 * cm, bottomMargin=1 * cm, title="Diagrama de Gantt")
+    story = [Paragraph("Diagrama de Gantt · Cronograma de fabricación", styles["Title"])]
+    if not panels:
+        story.append(Paragraph("No hay paneles programados.", styles["Normal"]))
+        doc.build(story)
+        return out.getvalue()
+    start, finish = CalendarDate.fromisoformat(data["first_date"]), CalendarDate.fromisoformat(data["finish_date"])
+    cell_style = styles["BodyText"].clone("gantt", fontSize=6.5, leading=7.5, alignment=1)
+    block = start
+    while block <= finish:
+        days = [block + timedelta(days=i) for i in range(GANTT_DAYS)]
+        keys = [d.isoformat() for d in days]
+        block += timedelta(days=GANTT_DAYS)
+        if not any((m["name"], k) in cells for m in molds for k in keys):
+            continue  # skip two-week blocks without production
+        head = ["Molde"] + [f"{DAYS[d.weekday()]}\n{d.strftime('%d/%m')}" for d in days]
+        rows, style = [head], [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1C1C1E")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#C7C7CC")),
+        ]
+        for r, mold in enumerate(molds, start=1):
+            row = [mold["name"]]
+            for c, key in enumerate(keys, start=1):
+                p = cells.get((mold["name"], key))
+                row.append(Paragraph(p["code"].replace(" [", "<br/>[", 1), cell_style) if p else "")
+                if p:
+                    style += [("BACKGROUND", (c, r), (c, r), tint(p.get("color"))),
+                              ("BOX", (c, r), (c, r), 0.8, colors.HexColor(p["color"]) if len(p.get("color") or "") == 7 else colors.grey)]
+                elif days[c - 1].weekday() == 6:
+                    style.append(("BACKGROUND", (c, r), (c, r), colors.HexColor("#F2F2F7")))
+            style.append(("TEXTCOLOR", (0, r), (0, r), colors.HexColor(mold["color"]) if len(mold.get("color") or "") == 7 else colors.black))
+            rows.append(row)
+        counts = [sum(1 for m in molds if (m["name"], k) in cells) for k in keys]
+        areas = [round(sum(cells[(m["name"], k)].get("area") or 0 for m in molds if (m["name"], k) in cells), 2) for k in keys]
+        rows.append(["Paneles / día"] + [str(n) for n in counts])
+        rows.append(["m² / día"] + [f"{a:g}" if a else "—" for a in areas])
+        style += [("FONTNAME", (0, -2), (-1, -1), "Helvetica-Bold"), ("LINEABOVE", (0, -2), (-1, -2), 1, colors.black)]
+        width = (landscape(A4)[0] - 2 * cm - 2.2 * cm) / GANTT_DAYS
+        table = Table(rows, colWidths=[2.2 * cm] + [width] * GANTT_DAYS, repeatRows=1)
+        table.setStyle(TableStyle(style))
+        if len(story) > 1:
+            story.append(PageBreak())
+        story += [Paragraph(f"{days[0].strftime('%d/%m/%Y')} – {days[-1].strftime('%d/%m/%Y')}", styles["Heading3"]), table]
+    doc.build(story)
+    return out.getvalue()
+
+
 FORMATS = {"xlsx": (to_xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
            "pdf": (to_pdf, "application/pdf")}
 
@@ -107,6 +179,14 @@ def create_export_router(service):
         build, media = FORMATS[kind]
         name = f"cronograma_{CalendarDate.today().isoformat()}.{kind}"
         return StreamingResponse(BytesIO(build(*build_tables(data))), media_type=media,
+                                 headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    @router.get("/export-gantt.pdf")
+    async def export_gantt():
+        data = await service.get()
+        data = data.model_dump() if hasattr(data, "model_dump") else data
+        name = f"gantt_{CalendarDate.today().isoformat()}.pdf"
+        return StreamingResponse(BytesIO(to_gantt_pdf(data)), media_type="application/pdf",
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     return router
