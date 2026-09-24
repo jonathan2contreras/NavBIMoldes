@@ -1,0 +1,59 @@
+services:
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: python:3.11-slim
+    working_dir: /app/backend
+    volumes:
+      - ./backend:/app/backend
+      - backend-venv:/venv
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=bimtracker
+      - PIP_DISABLE_PIP_VERSION_CHECK=1
+    env_file:
+      - /run/base44/app.env
+    command: >
+      sh -c "[ -x /venv/bin/uvicorn ] || python -m venv /venv &&
+      grep -vE '^(emergentintegrations|litellm)' requirements.txt > /tmp/req.txt &&
+      /venv/bin/pip install -q -r /tmp/req.txt &&
+      exec /venv/bin/uvicorn server:app --host 0.0.0.0 --port 8001 --reload"
+    ports:
+      - "8001:8001"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  frontend:
+    image: node:20
+    working_dir: /app/frontend
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend-node-modules:/app/frontend/node_modules
+    environment:
+      - REACT_APP_BACKEND_URL=https://8001-${BASE44_PUBLIC_HOST_SUFFIX}
+      - HOST=0.0.0.0
+      - PORT=3000
+      - BROWSER=none
+      - DANGEROUSLY_DISABLE_HOST_CHECK=true
+      - WDS_SOCKET_PORT=443
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    command: sh -c "yarn install --non-interactive --network-timeout 600000 && exec yarn start"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
+  backend-venv:
+  frontend-node-modules:
