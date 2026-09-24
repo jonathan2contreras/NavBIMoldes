@@ -1,4 +1,5 @@
 """Shareable exports (Excel / PDF) of the current schedule and the installation plan."""
+import re
 from datetime import date as CalendarDate, timedelta
 from io import BytesIO
 
@@ -104,10 +105,8 @@ def to_gantt_pdf(data):
     """Mold rows × day columns, one page per block of GANTT_DAYS days."""
     panels = [p for p in data["panels"] if p.get("date")]
     cells = {(p["molde"], p["date"]): p for p in panels}
-    first = {}
-    for p in data["panels"]:
-        first.setdefault(p["molde"], p.get("sequence_index", 0))
-    molds = sorted(data["molds"], key=lambda m: (first.get(m["name"], float("inf")), m["name"]))
+    natural = lambda name: [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
+    molds = sorted(data["molds"], key=lambda m: natural(m["name"]))
     styles = getSampleStyleSheet()
     out = BytesIO()
     doc = SimpleDocTemplate(out, pagesize=landscape(A4), leftMargin=1 * cm, rightMargin=1 * cm,
