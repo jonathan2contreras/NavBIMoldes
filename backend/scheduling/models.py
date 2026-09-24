@@ -69,6 +69,17 @@ class ScheduleMold(BaseModel):
     scheduled: int
 
 
+class ProductionDay(BaseModel):
+    date: str
+    scheduled: int
+    target: int
+    available_molds: int
+    remaining_panels: int
+    shortfall: int
+    status: str
+    explanation: str
+
+
 class ScheduleResponse(BaseModel):
     start_date: str
     daily_capacity: int
@@ -93,3 +104,9 @@ class ScheduleResponse(BaseModel):
     floors: list[ScheduleFloor]
     stages: list[ScheduleStage]
     awaiting_location: int
+    production_days: list[ProductionDay]
+    full_capacity_days: int
+    limited_capacity_days: int
+    manual_gap_days: int
+    bottleneck_mold: Optional[str] = None
+    bottleneck_panels: int

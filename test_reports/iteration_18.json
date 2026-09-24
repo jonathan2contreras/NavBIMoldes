@@ -1,0 +1,40 @@
+{
+  "summary": "Executed backend + frontend regression for reported cronograma quantity bug and new quantity-first contract. Verified admin UI quantity changes (unsaved 5->3, saved 3->5->8->1, 5.0 normalization, validation errors, conflict 409 recovery, duplicate submit protection), diagnostics, and legacy migration behavior. Restored production_schedules._id=production exactly to original baseline (original None => deleted).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_schedule_capacity_priority_iter18.py",
+    "/app/test_reports/pytest/iter18_schedule_capacity.xml"
+  ],
+  "action_items": [
+    "No blocking defects found in the reported quantity-change flow during this verification pass.",
+    "Optional: keep monitoring non-blocking WebGL driver warnings seen in browser console (environment/GPU related)."
+  ],
+  "critical_code_review_comments": [
+    "Quantity-first engine invariants now match required contract for generated plan: one panel per mold/day, <=target/day, Sunday=0, exact-once panel assignment, and mold-limit shortfall explanation.",
+    "Schedule service CAS semantics are working: stale revisions return 409 and retry with fresh revision succeeds.",
+    "Legacy strict strategy guard is correctly enforced until explicit generate/apply migration updates strategy to daily_capacity_priority_v1."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_schedule_capacity_priority_iter18.py",
+    "/app/test_reports/iteration_18.json"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 pytest in iter18 suite)",
+    "frontend": "96% (all requested quantity/admin/viewer workflows passed; one expected 409 console line during stale-conflict simulation)"
+  },
+  "test_credentials": "Admin password admin2026 and viewer role from /app/memory/test_credentials.md",
+  "seed_data_creation": "None. No project_settings/tags/molds/facades/model data modified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Safety restore completed: production schedule document reset to original baseline state (original snapshot was None, so _id=production deleted). Current GET /api/schedule returns saved=false, revision=0, daily_capacity=5, start_date=2026-11-01, finish_date=2027-06-12. /api/report/molds remains total=526, con_molde=526, model_total=533.",
+  "rca of the issue": "Reported bug ('error when modifying daily quantity') was reproduced in UI regression paths and is now verified as resolved in tested build. API-level quantity change for valid integers returns 200 as expected. Frontend local validation blocks invalid values (0, negative, empty, decimal 2.5, >1000) with Spanish guidance and without save. Conflict scenario uses optimistic concurrency (409) with preserved user draft and successful re-apply."
+}

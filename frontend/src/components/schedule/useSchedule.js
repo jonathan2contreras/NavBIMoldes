@@ -31,7 +31,12 @@ export const useSchedule = () => {
     try {
       const result = await request();
       setData(result); setNotice(message); return result;
-    } catch (err) { setError(err.message); return null; }
+    } catch (err) {
+      if (err.status === 409) {
+        try { setData(await api.getSchedule()); } catch { /* Preserve the last visible schedule on network failure. */ }
+      }
+      setError(err.message); return null;
+    }
     finally { busy.current = false; setSaving(false); }
   };
   return { data, loading, saving, error, notice, refresh, mutate };

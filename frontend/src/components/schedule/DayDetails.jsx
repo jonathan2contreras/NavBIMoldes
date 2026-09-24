@@ -13,12 +13,15 @@ export const DayDetails = ({ data, selected, onSelect, admin, busy, onMove }) =>
   const rest = sunday(selected) || selected < data.start_date;
   const available = rest ? 0 : Math.max(0, data.daily_capacity - panels.length);
   const molds = new Set(panels.map((p) => p.molde));
+  const production = data.production_days.find((day) => day.date === selected);
   const add = async () => { if (choice && await onMove(choice, selected)) setChoice(""); };
   return <aside className="min-w-0 border-t border-[#E5E5EA] pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" data-testid="schedule-day-detail">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-base font-bold md:text-lg">Detalle diario</h2><span className="text-xs font-semibold text-[#007AFF]" data-testid="schedule-day-count">{panels.length} / {rest ? 0 : data.daily_capacity}</span></div>
     <label className="mt-3 block text-xs font-semibold text-[#636366]" htmlFor="schedule-selected-day">Día de fabricación<input id="schedule-selected-day" type="date" min={data.start_date} value={selected} onChange={(e) => { if (e.target.value) onSelect(e.target.value); }} className="schedule-input mt-1.5 w-full" data-testid="schedule-selected-day" /></label>
     <p className="mt-3 text-sm font-semibold capitalize" data-testid="schedule-day-heading">{dateLabel(selected, "EEEE d 'de' MMMM")}</p>
-    <p className="mt-1 text-xs text-[#636366]" data-testid="schedule-day-availability">{rest ? "Día no laborable" : `${available} plazas disponibles`}</p>
+    <p className="mt-1 text-xs text-[#636366]" data-testid="schedule-day-availability">{rest ? "Día no laborable" : `${available} huecos en la agenda`}</p>
+    {!rest && production?.shortfall > 0 && <p className="mt-3 border-l-2 border-[#AE6500] bg-amber-50 p-3 text-xs text-amber-900" data-testid="schedule-day-shortfall">{production.scheduled} de {production.target} paneles previstos. {production.explanation}</p>}
+    {!rest && production?.status === "full" && <p className="mt-2 text-xs font-semibold text-[#18824B]" data-testid="schedule-day-target-met">Objetivo diario completo: {production.scheduled}/{production.target}</p>}
     {panels.length > 0 && <p className="mt-2 text-xs font-semibold text-[#007AFF]" data-testid="schedule-day-stage">{[...new Set(panels.map((p) => `${p.floor_label} · ${p.facade_label}`))].join(" / ")}</p>}
     <div className="my-4 h-1 overflow-hidden rounded-full bg-[#E5E5EA]" aria-hidden="true"><div className="h-full bg-[#007AFF] transition-[width]" style={{ width: `${rest ? 0 : panels.length / data.daily_capacity * 100}%` }} /></div>
     <div className="space-y-2" data-testid="schedule-day-panels">

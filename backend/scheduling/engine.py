@@ -1,59 +1,42 @@
-"""Calendar/resource scheduling with a strict, geometry-derived production sequence."""
-from collections import Counter
+"""Fill daily output first; use the geometric floor/facade route as a preference."""
+from collections import Counter, defaultdict, deque
 from datetime import date, timedelta
 from fastapi import HTTPException
-from .order import ordered_panels, validate_order
-
-
-def validate_day(value, start):
-    if value < date.fromisoformat(start):
-        raise HTTPException(422, "La fecha no puede ser anterior al inicio del cronograma.")
-    if value.weekday() == 6:
-        raise HTTPException(422, "Los domingos no se fabrica. Elige un día de lunes a sábado.")
-    if value > date.fromisoformat(start) + timedelta(days=3650):
-        raise HTTPException(422, "La fecha supera el horizonte de planificación de 10 años.")
+from .order import ordered_panels
+from .resources import validate_day, validate_resources
 
 
 def plan(panels, start, capacity, fixed=None):
     entries = list(fixed or [])
-    validate_order(panels, entries)
-    fixed_dates = {entry["object_name"]: entry["date"] for entry in entries}
+    validate_resources(panels, entries, start, capacity)
+    assigned = {entry["object_name"] for entry in entries}
     occupied = {(entry["date"], entry["molde"]) for entry in entries}
     counts = Counter(entry["date"] for entry in entries)
-    stages = {entry["date"]: panels[entry["object_name"]]["stage_index"] for entry in entries}
-    for entry in entries:
-        validate_day(date.fromisoformat(entry["date"]), start)
-    if len(occupied) != len(entries) or any(count > capacity for count in counts.values()):
-        raise HTTPException(409, "Las fechas fijas exceden la capacidad del molde o del día. Recalcula el cronograma.")
+    queues = defaultdict(deque)
+    for panel in ordered_panels(panels):
+        if panel["object_name"] not in assigned:
+            queues[panel["molde"]].append(panel)
     day = date.fromisoformat(start)
     limit = day + timedelta(days=3650)
-    previous_stage = None
-    for panel in ordered_panels(panels):
-        stage = panel["stage_index"]
-        if previous_stage is not None and stage != previous_stage:
-            day += timedelta(days=1)
-        while day.weekday() == 6:
-            day += timedelta(days=1)
-        fixed_day = fixed_dates.get(panel["object_name"])
-        if fixed_day:
-            if fixed_day < day.isoformat():
-                raise HTTPException(409, "Los pendientes no caben antes de las fechas ya fijadas sin romper el orden estricto. Recalcula el cronograma con confirmación.")
-            day = date.fromisoformat(fixed_day)
-        else:
-            while day <= limit:
-                key = day.isoformat()
-                if day.weekday() != 6 and counts[key] < capacity and (key, panel["molde"]) not in occupied and stages.get(key, stage) == stage:
-                    break
-                day += timedelta(days=1)
-            if day > limit:
-                raise HTTPException(422, "La producción supera el horizonte de 10 años.")
+    while queues:
+        if day > limit:
+            raise HTTPException(422, "La producción supera el horizonte de 10 años.")
+        if day.weekday() != 6:
             key = day.isoformat()
-            entries.append({"object_name": panel["object_name"], "molde": panel["molde"], "date": key})
-            occupied.add((key, panel["molde"]))
-            counts[key] += 1
-            stages[key] = stage
-        previous_stage = stage
-    validate_order(panels, entries)
+            free_slots = max(0, capacity - counts[key])
+            available = [queue[0] for mold, queue in queues.items() if (key, mold) not in occupied]
+            # Every chosen panel uses a different mold. Never stop at a blocked facade/floor.
+            candidates = sorted(available, key=lambda panel: (panel["sequence_index"], panel["object_name"]))[:free_slots]
+            for panel in candidates:
+                mold = panel["molde"]
+                entries.append({"object_name": panel["object_name"], "molde": mold, "date": key})
+                occupied.add((key, mold))
+                counts[key] += 1
+                queues[mold].popleft()
+                if not queues[mold]:
+                    del queues[mold]
+        day += timedelta(days=1)
+    validate_resources(panels, entries, start, capacity)
     return entries
 
 
