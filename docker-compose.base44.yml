@@ -15,17 +15,21 @@ services:
     volumes:
       - ./backend:/app/backend
       - pip-cache:/root/.cache/pip
+      - backend-venv:/venv
     environment:
       - MONGO_URL=mongodb://mongo:27017
       - DB_NAME=bimtracker
       - PYTHONUNBUFFERED=1
+      - PATH=/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     env_file:
       - /run/base44/app.env
-    # emergentintegrations is only on Emergent's private index and is not imported by server.py
+    # Deps live in a persistent venv and are reinstalled only when requirements.txt changes.
+    # emergentintegrations is only on Emergent's private index and is not imported by server.py.
     command: >
-      sh -c "grep -v '^emergentintegrations' requirements.txt > /tmp/req.txt &&
-             pip install -q -r /tmp/req.txt &&
-             uvicorn server:app --host 0.0.0.0 --port 8001 --reload"
+      sh -c "[ -x /venv/bin/python ] || python -m venv /venv;
+             grep -v '^emergentintegrations' requirements.txt > /tmp/req.txt;
+             if ! cmp -s /tmp/req.txt /venv/.req.txt; then pip install -q -r /tmp/req.txt && cp /tmp/req.txt /venv/.req.txt; fi;
+             exec uvicorn server:app --host 0.0.0.0 --port 8001 --reload"
     ports:
       - "8001:8001"
     depends_on:
@@ -57,4 +61,5 @@ services:
 volumes:
   mongo-data:
   pip-cache:
+  backend-venv:
   frontend-node-modules:
