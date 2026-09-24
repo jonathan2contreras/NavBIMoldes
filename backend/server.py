@@ -241,11 +241,14 @@ async def startup():
     await db.tags.update_many({}, {"$unset": {"ancho": "", "alto": "", "color": ""}})
     if await db.tipos.count_documents({}) == 0:
         await db.tipos.insert_many([{"name": n} for n in ["Curvo", "Liso", "Borde de losa", "Cubre viga"]])
-    try:
-        init_storage()
-        logging.info("Object storage initialized")
-    except Exception as e:
-        logging.error(f"Storage init failed: {e}")
+    if not os.environ.get("EMERGENT_LLM_KEY"):
+        logging.warning("EMERGENT_LLM_KEY not set; object storage (photo/PDF uploads) disabled")
+    else:
+        try:
+            init_storage()
+            logging.info("Object storage initialized")
+        except Exception as e:
+            logging.error(f"Storage init failed: {e}")
     logging.info(f"Loaded {len(OBJECTS)} objects ({len(FACADE_NAMES)} facade) from model")
 
 
