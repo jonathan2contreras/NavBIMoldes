@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { analyzeSchedule } from "../lib/scheduleAnalysis";
 import { weekLabel } from "../lib/phases";
 import { dateLabel } from "../components/schedule/dates";
+import AnalysisExport from "../components/progress/AnalysisExport";
 
 const segments = [
   { key: "advance", label: "Antes de la semana", color: "bg-emerald-600" },
@@ -44,7 +45,10 @@ export default function ProgressPage() {
         <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#636366]">Fabricación / Instalación</p>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Análisis de cumplimiento</h1>
           <p className="mt-2 max-w-2xl text-sm text-[#636366]">Comparación de las fechas previstas de fabricación con la semana asignada para instalación de cada panel.</p></div>
-        <button type="button" onClick={refresh} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[#C7C7CC] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50" data-testid="progress-refresh"><RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Actualizar datos</button>
+        <div className="flex flex-wrap items-center gap-2">
+          {analysis && <AnalysisExport analysis={analysis} disabled={loading} />}
+          <button type="button" onClick={refresh} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-[#C7C7CC] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50" data-testid="progress-refresh"><RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Actualizar datos</button>
+        </div>
       </header>
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">No se pudo cargar el análisis: {error}</p>}
       {loading && <p role="status" className="py-12 text-center text-sm text-[#636366]">Cargando cronogramas…</p>}
