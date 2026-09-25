@@ -3,7 +3,8 @@
 #
 # IMPORTANTE: define la variable de entorno REACT_APP_BACKEND_URL en Netlify
 # (Site settings → Environment variables) con la URL pública del backend FastAPI,
-# por ejemplo https://api.tudominio.com (sin barra final). Se incrusta en el build.
+# por ejemplo https://nabimoldes-api.onrender.com (sin barra final). Es la URL que
+# asigna Render al backend y se incrusta en el build.
 
 [build]
   base = "frontend"

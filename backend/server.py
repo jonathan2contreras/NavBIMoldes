@@ -372,7 +372,7 @@ project_panels = ProjectPanelsService(db, lambda: FACADE_NAMES, fetch_tags_map)
 
 @api_router.get("/")
 async def root():
-    return {"message": "BIMTracker API", "objects": len(OBJECTS)}
+    return {"message": "NaBiMoldes API", "objects": len(OBJECTS)}
 
 
 @api_router.get("/model")
