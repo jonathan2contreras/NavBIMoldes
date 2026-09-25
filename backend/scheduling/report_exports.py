@@ -16,6 +16,8 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from .readiness_timeline_pdf import build_readiness_pdf
+
 
 def fmt(value):
     return CalendarDate.fromisoformat(value).strftime("%d/%m/%Y") if value else "—"
@@ -214,8 +216,11 @@ def create_report_exports_router():
 
     @router.post("/mold-readiness.pdf")
     async def export_mold_readiness(payload: ReadinessPayload):
-        return pdf_response(readiness_story(payload), "Plazos de moldes",
-                            f"plazos_moldes_{CalendarDate.today().isoformat()}.pdf", A4)
+        content = build_readiness_pdf(readiness_story(payload), payload)
+        filename = f"plazos_moldes_{CalendarDate.today().isoformat()}.pdf"
+        return Response(content, media_type="application/pdf",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                                 "Cache-Control": "no-store"})
 
     @router.post("/analysis.pdf")
     async def export_analysis(payload: AnalysisPayload):
