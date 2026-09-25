@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from reportlab.platypus import Table
 
 from scheduling.installation_export import (
-    create_installation_export_router, installation_gantt_story, to_installation_gantt_pdf,
+    create_installation_export_router, facade_thumbnails, installation_gantt_story, to_installation_gantt_pdf,
 )
 
 
@@ -67,14 +67,18 @@ def test_four_model_views_below_gantt_on_one_page():
     images = {}
     for index, key in enumerate(("norte", "sur", "este", "oeste")):
         picture = BytesIO()
-        Image.new("RGB", (480, 360), (140 + index * 20, 180, 210)).save(picture, format="JPEG")
-        images[key] = "data:image/jpeg;base64," + base64.b64encode(picture.getvalue()).decode()
+        Image.new("RGBA", (640, 480), (140 + index * 20, 180, 210, 0)).save(picture, format="PNG")
+        images[key] = "data:image/png;base64," + base64.b64encode(picture.getvalue()).decode()
     data = plan()
     story = installation_gantt_story(data)
     assert len([item for item in story if isinstance(item, Table)]) == 1
+    thumbnail_table = facade_thumbnails(images)[-1]
+    assert len(thumbnail_table._cellvalues) == 2
+    assert thumbnail_table._colWidths[0] > 9 * 28  # Each image is wider than 9 cm.
     pdf = to_installation_gantt_pdf(data, images)
     assert len(re.findall(rb"/Type\s*/Page\b", pdf)) == 1
-    assert len(re.findall(rb"/Subtype\s*/Image\b", pdf)) == 4
+    assert len(re.findall(rb"/Subtype\s*/Image\b", pdf)) >= 4
+    assert b"/SMask" in pdf  # Transparent PNGs retain their alpha channel.
 
     class Store:
         async def read(self):

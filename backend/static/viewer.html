@@ -55,7 +55,7 @@ function send(msg) {
 }
 
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0xEDEEF2);
@@ -149,6 +149,7 @@ let isolation = 'all';
 let sceneMaxDim = 1;
 let modelCenter = new THREE.Vector3();
 let loaded = false;
+const exportDecorations = [];
 
 function isVisibleFor(name) {
   const molde = (tags[name] && tags[name].molde) || null;
@@ -282,30 +283,37 @@ window.viewerAPI = {
     const oldTarget = controls.target.clone();
     const oldAspect = camera.aspect;
     const visibility = meshList.map((mesh) => mesh.visible);
+    const decorationVisibility = exportDecorations.map((mesh) => mesh.visible);
+    const clearColor = renderer.getClearColor(new THREE.Color()).clone();
+    const clearAlpha = renderer.getClearAlpha();
     try {
-      const width = 480, height = 360;
+      const width = 640, height = 480;
       renderer.setSize(width, height, false);
+      renderer.setClearColor(0x000000, 0);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       meshList.forEach((mesh) => { mesh.visible = true; });
+      exportDecorations.forEach((mesh) => { mesh.visible = false; });
       const directions = {
         norte: [-0.6, 0.7, -1], sur: [0.6, 0.7, 1],
         este: [1, 0.7, -0.6], oeste: [-1, 0.7, 0.6],
       };
       const images = {};
       for (const [name, xyz] of Object.entries(directions)) {
-        camera.position.copy(modelCenter).add(new THREE.Vector3(...xyz).normalize().multiplyScalar(sceneMaxDim * 2.7));
+        camera.position.copy(modelCenter).add(new THREE.Vector3(...xyz).normalize().multiplyScalar(sceneMaxDim * 2.0));
         controls.target.copy(modelCenter);
         camera.lookAt(modelCenter);
         renderer.shadowMap.needsUpdate = true;
         renderer.render(scene, camera);
-        images[name] = canvas.toDataURL('image/jpeg', 0.85);
+        images[name] = canvas.toDataURL('image/png');
       }
       send({ type: 'facadeCaptures', id, images });
     } catch (error) {
       send({ type: 'facadeCaptures', id, error: 'No se pudieron capturar las fachadas del modelo.' });
     } finally {
       meshList.forEach((mesh, index) => { mesh.visible = visibility[index]; });
+      exportDecorations.forEach((mesh, index) => { mesh.visible = decorationVisibility[index]; });
+      renderer.setClearColor(clearColor, clearAlpha);
       camera.position.copy(oldPosition);
       controls.target.copy(oldTarget);
       camera.aspect = oldAspect;
@@ -368,6 +376,7 @@ function addCompassLabels(box, size, center, maxDim) {
     m.rotation.x = -Math.PI / 2;
     m.position.set(center.x + dx, groundY, center.z + dz);
     scene.add(m);
+    exportDecorations.push(m);
   }
 }
 
@@ -445,6 +454,7 @@ loader.load('/api/model',
     ground.receiveShadow = true;
     ground.raycast = () => {};
     scene.add(ground);
+    exportDecorations.push(ground);
     renderer.shadowMap.needsUpdate = true;
     loaded = true;
     if (pendingTags) { tags = pendingTags; pendingTags = null; }

@@ -92,19 +92,24 @@ def facade_thumbnails(images):
     cells = []
     for key, label in FACADES:
         value = images[key]
-        if not value.startswith("data:image/jpeg;base64,") or len(value) > 3_000_000:
+        if not value.startswith("data:image/png;base64,") or len(value) > 5_000_000:
             raise HTTPException(422, f"Imagen inválida: {label}.")
         try:
             raw = base64.b64decode(value.split(",", 1)[1], validate=True)
-            if not raw.startswith(b"\xff\xd8\xff"):
-                raise ValueError("Not JPEG")
-            image = Image(BytesIO(raw), width=5.5 * cm, height=4.125 * cm)
+            if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
+                raise ValueError("Not PNG")
+            image = Image(BytesIO(raw), width=9.5 * cm, height=7.125 * cm)
         except (ValueError, binascii.Error, OSError) as exc:
             raise HTTPException(422, f"Imagen inválida: {label}.") from exc
-        cells.append([Paragraph(f"Fachada {label} · vista isométrica", styles["BodyText"]), image])
-    thumbnails = Table([cells], colWidths=[6 * cm] * 4)
+        cells.append([Paragraph(f"Fachada {label} · vista isométrica", styles["BodyText"]), Spacer(1, 8), image])
+    thumbnails = Table([[cells[0], "", cells[1]], [cells[2], "", cells[3]]],
+                       colWidths=[9.5 * cm, 1.4 * cm, 9.5 * cm], hAlign="CENTER")
     thumbnails.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
-                                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F2F2F7"))]))
+                                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                                    ("BOTTOMPADDING", (0, 0), (-1, 0), 0.9 * cm)]))
     return [Spacer(1, 18), Paragraph("Modelo completo · cuatro fachadas", styles["Heading2"]), thumbnails]
 
 
