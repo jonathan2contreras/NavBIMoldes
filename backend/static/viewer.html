@@ -300,7 +300,7 @@ window.viewerAPI = {
       };
       const images = {};
       for (const [name, xyz] of Object.entries(directions)) {
-        camera.position.copy(modelCenter).add(new THREE.Vector3(...xyz).normalize().multiplyScalar(sceneMaxDim * 2.0));
+        camera.position.copy(modelCenter).add(new THREE.Vector3(...xyz).normalize().multiplyScalar(sceneMaxDim * 1.85));
         controls.target.copy(modelCenter);
         camera.lookAt(modelCenter);
         renderer.shadowMap.needsUpdate = true;

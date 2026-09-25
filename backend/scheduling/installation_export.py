@@ -98,18 +98,17 @@ def facade_thumbnails(images):
             raw = base64.b64decode(value.split(",", 1)[1], validate=True)
             if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
                 raise ValueError("Not PNG")
-            image = Image(BytesIO(raw), width=9.5 * cm, height=7.125 * cm)
+            image = Image(BytesIO(raw), width=7 * cm, height=5.25 * cm)
         except (ValueError, binascii.Error, OSError) as exc:
             raise HTTPException(422, f"Imagen inválida: {label}.") from exc
         cells.append([Paragraph(f"Fachada {label} · vista isométrica", styles["BodyText"]), Spacer(1, 8), image])
-    thumbnails = Table([[cells[0], "", cells[1]], [cells[2], "", cells[3]]],
-                       colWidths=[9.5 * cm, 1.4 * cm, 9.5 * cm], hAlign="CENTER")
+    thumbnails = Table([[cells[0], "", cells[1], "", cells[2], "", cells[3]]],
+                       colWidths=[7 * cm, cm, 7 * cm, cm, 7 * cm, cm, 7 * cm], hAlign="CENTER")
     thumbnails.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
                                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                     ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                                     ("TOPPADDING", (0, 0), (-1, -1), 0),
-                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                                    ("BOTTOMPADDING", (0, 0), (-1, 0), 0.9 * cm)]))
+                                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
     return [Spacer(1, 18), Paragraph("Modelo completo · cuatro fachadas", styles["Heading2"]), thumbnails]
 
 

@@ -73,8 +73,9 @@ def test_four_model_views_below_gantt_on_one_page():
     story = installation_gantt_story(data)
     assert len([item for item in story if isinstance(item, Table)]) == 1
     thumbnail_table = facade_thumbnails(images)[-1]
-    assert len(thumbnail_table._cellvalues) == 2
-    assert thumbnail_table._colWidths[0] > 9 * 28  # Each image is wider than 9 cm.
+    assert len(thumbnail_table._cellvalues) == 1
+    assert len(thumbnail_table._cellvalues[0]) == 7  # Four views with three gaps, all in one line.
+    assert thumbnail_table._colWidths[0] > 6 * 28  # Views remain large.
     pdf = to_installation_gantt_pdf(data, images)
     assert len(re.findall(rb"/Type\s*/Page\b", pdf)) == 1
     assert len(re.findall(rb"/Subtype\s*/Image\b", pdf)) >= 4
