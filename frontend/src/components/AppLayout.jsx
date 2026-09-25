@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { BarChart3, Box, CalendarRange, FileText, Layers, List } from "lucide-react";
+import { BarChart3, Box, CalendarClock, CalendarRange, FileText, Layers, List } from "lucide-react";
 import BackupControls from "@/components/BackupControls";
 
 const TABS = [
@@ -9,6 +9,7 @@ const TABS = [
   { to: "/molds", label: "Moldes", icon: Layers, testId: "tab-molds" },
   { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
   { to: "/schedule", label: "Fabricación", icon: CalendarRange, testId: "tab-schedule" },
+  { to: "/mold-readiness", label: "Plazos de moldes", icon: CalendarClock, testId: "tab-mold-readiness" },
   { to: "/installation", label: "Instalación", icon: CalendarRange, testId: "tab-installation" },
   { to: "/progress", label: "Análisis", icon: BarChart3, testId: "tab-progress" },
 ];
