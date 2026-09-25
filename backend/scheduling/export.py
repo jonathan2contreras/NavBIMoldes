@@ -2,6 +2,7 @@
 import re
 from datetime import date as CalendarDate, timedelta
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -14,6 +15,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 SCHEDULE_HEAD = ["Fecha", "Día", "Molde", "Panel", "Tipo", "Fachada", "Planta", "Frente", "Semana", "m²"]
 PLAN_HEAD = ["Orden", "Frente", "Semana", "Panel", "Molde", "Tipo", "Fachada", "Fecha programada", "m²"]
 
@@ -117,7 +119,10 @@ def to_gantt_pdf(data):
         doc.build(story)
         return out.getvalue()
     start, finish = CalendarDate.fromisoformat(data["first_date"]), CalendarDate.fromisoformat(data["finish_date"])
-    cell_style = styles["BodyText"].clone("gantt", fontSize=6.5, leading=7.5, alignment=1)
+    cell_style = styles["BodyText"].clone("gantt", fontSize=6.5, leading=8, alignment=0)
+    mold_style = styles["BodyText"].clone("gantt-mold", fontSize=8, leading=10)
+    day_style = styles["BodyText"].clone("gantt-day", fontSize=8, leading=10, alignment=1)
+    day_style.textColor = colors.HexColor("#1C1C1E")
     block = start
     while block <= finish:
         days = [block + timedelta(days=i) for i in range(GANTT_DAYS)]
@@ -125,35 +130,56 @@ def to_gantt_pdf(data):
         block += timedelta(days=GANTT_DAYS)
         if not any((m["name"], k) in cells for m in molds for k in keys):
             continue  # skip two-week blocks without production
-        head = ["Molde"] + [f"{DAYS[d.weekday()]}\n{d.strftime('%d/%m')}" for d in days]
+        head = [Paragraph("<b>Molde</b><br/><font size='7' color='#636366'>Programados / total</font>", mold_style)] + [
+            Paragraph(f"<font size='7' color='#636366'>{DAYS[d.weekday()]}</font><br/>"
+                      f"<b><font size='12'>{d.day}</font></b><br/>"
+                      f"<font size='7' color='#636366'>{MONTHS[d.month - 1]}</font>", day_style)
+            for d in days]
         rows, style = [head], [
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1C1C1E")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#FAFAFA")),
+            ("BACKGROUND", (0, 1), (0, -1), colors.white),
             ("FONTSIZE", (0, 0), (-1, -1), 7),
             ("ALIGN", (1, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#C7C7CC")),
+            ("LEFTPADDING", (1, 1), (-1, -1), 3),
+            ("RIGHTPADDING", (1, 1), (-1, -1), 3),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E5E5EA")),
         ]
         for r, mold in enumerate(molds, start=1):
-            row = [mold["name"]]
+            color = mold.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", mold.get("color") or "") else "#8E8E93"
+            row = [Paragraph(f"<b>{escape(mold['name'])}</b><br/>"
+                             f"<font size='7' color='#636366'>{mold.get('scheduled', 0)} / {mold.get('total', 0)} · "
+                             f"{escape(mold.get('tipo') or 'Sin tipo')}</font>", mold_style)]
+            style.append(("LINEBEFORE", (0, r), (0, r), 3, colors.HexColor(color)))
             for c, key in enumerate(keys, start=1):
                 p = cells.get((mold["name"], key))
-                row.append(Paragraph(p["code"].replace(" [", "<br/>[", 1), cell_style) if p else "")
                 if p:
-                    style += [("BACKGROUND", (c, r), (c, r), tint(p.get("color"))),
-                              ("BOX", (c, r), (c, r), 0.8, colors.HexColor(p["color"]) if len(p.get("color") or "") == 7 else colors.grey)]
-                elif days[c - 1].weekday() == 6:
-                    style.append(("BACKGROUND", (c, r), (c, r), colors.HexColor("#F2F2F7")))
-            style.append(("TEXTCOLOR", (0, r), (0, r), colors.HexColor(mold["color"]) if len(mold.get("color") or "") == 7 else colors.black))
+                    code = p["code"]
+                    quantity = re.search(r"\[([^\]]*)\]", code)
+                    area = f"{p.get('area') or 0:g}".replace(".", ",")
+                    row.append(Paragraph(f"<b>{escape(code.split(' [', 1)[0])}</b><br/>"
+                                         f"<font size='7' color='#636366'>{escape(quantity.group(1) if quantity else '1 panel')}</font><br/>"
+                                         f"<font size='7' color='#007AFF'><b>{area} m²</b></font>", cell_style))
+                    panel_color = p.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", p.get("color") or "") else color
+                    style += [("BACKGROUND", (c, r), (c, r), tint(panel_color, 0.13)),
+                              ("LINEBEFORE", (c, r), (c, r), 2, colors.HexColor(panel_color))]
+                else:
+                    row.append("")
+                    if days[c - 1].weekday() == 6:
+                        style.append(("BACKGROUND", (c, r), (c, r), colors.HexColor("#F2F2F7")))
             rows.append(row)
         counts = [sum(1 for m in molds if (m["name"], k) in cells) for k in keys]
         areas = [round(sum(cells[(m["name"], k)].get("area") or 0 for m in molds if (m["name"], k) in cells), 2) for k in keys]
-        rows.append(["Paneles / día"] + [str(n) for n in counts])
-        rows.append(["m² / día"] + [f"{a:g}" if a else "—" for a in areas])
-        style += [("FONTNAME", (0, -2), (-1, -1), "Helvetica-Bold"), ("LINEABOVE", (0, -2), (-1, -2), 1, colors.black)]
-        width = (landscape(A4)[0] - 2 * cm - 2.2 * cm) / GANTT_DAYS
-        table = Table(rows, colWidths=[2.2 * cm] + [width] * GANTT_DAYS, repeatRows=1)
+        rows.append(["Paneles / día"] + [f"{n} / {0 if days[i].weekday() == 6 else data['daily_capacity']}" for i, n in enumerate(counts)])
+        rows.append(["m² / día"] + [f"{a:g}".replace(".", ",") + " m²" if a else "—" for a in areas])
+        style += [("BACKGROUND", (0, -2), (-1, -1), colors.HexColor("#F2F2F7")),
+                  ("TEXTCOLOR", (1, -1), (-1, -1), colors.HexColor("#007AFF")),
+                  ("FONTNAME", (0, -2), (-1, -1), "Helvetica-Bold"),
+                  ("LINEABOVE", (0, -2), (-1, -2), 1, colors.HexColor("#C7C7CC"))]
+        width = (landscape(A4)[0] - 2 * cm - 12 - 3.2 * cm) / GANTT_DAYS
+        table = Table(rows, colWidths=[3.2 * cm] + [width] * GANTT_DAYS, repeatRows=1)
         table.setStyle(TableStyle(style))
         if len(story) > 1:
             story.append(PageBreak())
