@@ -35,6 +35,20 @@ test("renders one point when start and finish are the same day", () => {
   expect(container.querySelector('[data-testid="mold-production-mold"]').dataset.start).toBe("2026-12-01");
 });
 
+test("counts every copy as a mold and keeps the tally on its own line", () => {
+  render({ start_date: "2026-12-01", molds: [
+    { name: "M-01", copies: 2 }, { name: "M-02", copies: 1 }, { name: "M-03", copies: 1 },
+  ], panels: [
+    { molde: "M-01", date: "2026-12-01" },
+    { molde: "M-02", date: "2026-12-01" },
+    { molde: "M-03", date: "2026-12-01" },
+  ] });
+  const count = container.querySelector('[data-testid="mold-production-count"]');
+  expect(count.textContent).toBe("Inicio de producción4 moldes");
+  expect(count.querySelector("br")).not.toBeNull();
+  expect(container.querySelectorAll('[data-testid="mold-production-mold"]')).toHaveLength(3);
+});
+
 test("shows the number of copies only for duplicated molds", () => {
   render({ start_date: "2026-12-01", molds: [
     { name: "M-01", copies: 3 }, { name: "M-02", copies: 1 },

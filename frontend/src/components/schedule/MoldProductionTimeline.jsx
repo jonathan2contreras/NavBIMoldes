@@ -30,6 +30,8 @@ export default function MoldProductionTimeline({ readiness }) {
     <ol className="flex w-max min-w-full px-1 pt-1" aria-label="Fechas de inicio de producción por molde">
       {dates.map((date, index) => {
         const molds = byDate.get(date) || [];
+        // Cada copia fabrica por su cuenta, así que suma como un molde más.
+        const units = molds.reduce((sum, row) => sum + (row.mold?.copies || 1), 0);
         const isStart = date === start;
         const isEnd = date === end;
         return <li key={date} className="w-44 min-w-0 flex-1" data-testid="mold-production-milestone" data-date={date}>
@@ -41,7 +43,7 @@ export default function MoldProductionTimeline({ readiness }) {
           <div className="min-w-0 pr-5 pb-1">
             {(isStart || isEnd) && <p className="mb-1 text-xs font-bold">{[isStart && "Inicio del cronograma", isEnd && "Fin de producción"].filter(Boolean).join(" · ")}</p>}
             {molds.length > 0 && <>
-              <p className="mb-2 text-[11px] text-[#636366]">Inicio de producción · {molds.length} {molds.length === 1 ? "molde" : "moldes"}</p>
+              <p className="mb-2 text-[11px] text-[#636366]" data-testid="mold-production-count">Inicio de producción<br />{units} {units === 1 ? "molde" : "moldes"}</p>
               <ul className="flex flex-wrap gap-2">
                 {molds.map((row) => <li key={row.name} className="flex min-w-0 items-center gap-2 rounded-md border border-[#E5E5EA] bg-[#FAFAFC] px-2.5 py-1.5 text-xs font-bold" data-testid="mold-production-mold" data-mold={row.name} data-start={row.first}>
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: row.mold?.color || "#8E8E93" }} aria-hidden="true" />
