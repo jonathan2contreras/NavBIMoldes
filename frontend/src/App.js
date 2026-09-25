@@ -10,6 +10,7 @@ import ObjectsPage from "@/pages/ObjectsPage";
 import MoldsPage from "@/pages/MoldsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import SchedulePage from "@/pages/SchedulePage";
+import TimelinePage from "@/pages/TimelinePage";
 import InstallationPage from "@/pages/InstallationPage";
 import ProgressPage from "@/pages/ProgressPage";
 
@@ -25,6 +26,7 @@ function App() {
             <Route path="/molds" element={<MoldsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/timeline" element={<TimelinePage />} />
             <Route path="/installation" element={<InstallationPage />} />
             <Route path="/progress" element={<ProgressPage />} />
           </Route>
