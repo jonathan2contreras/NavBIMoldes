@@ -12,6 +12,7 @@ import MoldsPage from "@/pages/MoldsPage";
 import ReportsPage from "@/pages/ReportsPage";
 import SchedulePage from "@/pages/SchedulePage";
 import InstallationPage from "@/pages/InstallationPage";
+import ProgressPage from "@/pages/ProgressPage";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
             <Route path="/installation" element={<InstallationPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

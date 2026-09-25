@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Box, CalendarRange, FileText, Layers, List, LogOut } from "lucide-react";
+import { BarChart3, Box, CalendarRange, FileText, Layers, List, LogOut } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 
@@ -11,6 +11,7 @@ const TABS = [
   { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
   { to: "/schedule", label: "Fabricación", icon: CalendarRange, testId: "tab-schedule" },
   { to: "/installation", label: "Instalación", icon: CalendarRange, testId: "tab-installation" },
+  { to: "/progress", label: "Análisis", icon: BarChart3, testId: "tab-progress" },
 ];
 
 export default function AppLayout() {
