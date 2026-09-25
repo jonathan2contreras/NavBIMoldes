@@ -31,7 +31,7 @@ export default function ViewerPage({ installationSelection, installationPlan, co
   const [multiNames, setMultiNames] = useState([]);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [plan, setPlan] = useState({ fronts: [], items: [] });
-  const [phaseVisible, setPhaseVisible] = useState(true);
+  const [phaseVisible, setPhaseVisible] = useState(!!compact);
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [highlightStatus, setHighlightStatus] = useState(null);
   const highlightedPhase = installationSelection === undefined ? selectedPhase : installationSelection;
@@ -170,6 +170,7 @@ export default function ViewerPage({ installationSelection, installationPlan, co
       else if (msg.type === "loaded") {
         setLoading(false);
         loadedRef.current = true;
+        sendCmd("setPhaseVisible", [!!compact]);
         loadTags();
         if (pendingFocusRef.current) {
           const f = pendingFocusRef.current;
@@ -190,7 +191,7 @@ export default function ViewerPage({ installationSelection, installationPlan, co
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [loadTags, sendCmd, openObject]);
+  }, [loadTags, sendCmd, openObject, compact]);
 
   const handleIsolate = (key) => {
     setIsoFilter((prev) => {

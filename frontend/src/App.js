@@ -5,7 +5,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { RoleProvider } from "@/context/RoleContext";
 import { ProjectPanelsProvider } from "@/context/ProjectPanelsContext";
 import AppLayout from "@/components/AppLayout";
-import LoginPage from "@/pages/LoginPage";
 import ViewerPage from "@/pages/ViewerPage";
 import ObjectsPage from "@/pages/ObjectsPage";
 import MoldsPage from "@/pages/MoldsPage";
@@ -19,7 +18,7 @@ function App() {
     <RoleProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
           <Route element={<ProjectPanelsProvider><AppLayout /></ProjectPanelsProvider>}>
             <Route path="/" element={<ViewerPage />} />
             <Route path="/objects" element={<ObjectsPage />} />

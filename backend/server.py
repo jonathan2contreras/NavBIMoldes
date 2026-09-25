@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File, Depends, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -10,11 +10,9 @@ import uuid
 import logging
 import requests
 from pathlib import Path
-import bcrypt
-import jwt
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from project_panels import ProjectPanelsService, ProjectPanelsResponse, ProjectPanelsUpdate
 from scheduling.service import ScheduleService
 from scheduling.routes import create_schedule_router
@@ -22,6 +20,7 @@ from scheduling.export import create_export_router
 from scheduling.installation_export import create_installation_export_router
 from scheduling.spatial import SpatialCatalog
 from scheduling.phases import PhaseStore, create_phase_router
+from backup import create_backup_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -327,10 +326,6 @@ class TipoUpsert(BaseModel):
     name: str
 
 
-class AdminVerifyRequest(BaseModel):
-    password: str
-
-
 class FacadesPayload(BaseModel):
     facades: dict
 
@@ -389,51 +384,6 @@ async def get_viewer():
                         headers={"Cache-Control": "no-cache"})
 
 
-JWT_ALGORITHM = "HS256"
-ADMIN_TOKEN_DAYS = 30
-
-
-def create_admin_token() -> str:
-    payload = {
-        "role": "admin",
-        "exp": datetime.now(timezone.utc) + timedelta(days=ADMIN_TOKEN_DAYS),
-        "type": "access",
-    }
-    return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
-
-
-def require_admin(request: Request):
-    """Dependency: enforce a valid admin JWT on write endpoints."""
-    auth = request.headers.get("Authorization", "")
-    token = auth[7:] if auth.startswith("Bearer ") else ""
-    if not token:
-        raise HTTPException(status_code=401, detail="Se requiere acceso de administrador.")
-    try:
-        payload = jwt.decode(token, os.environ["JWT_SECRET"], algorithms=[JWT_ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="La sesión de administrador ha caducado. Vuelve a iniciar sesión.")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Acceso de administrador inválido.")
-    if payload.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Acción reservada a administradores.")
-    return payload
-
-
-@api_router.post("/admin/verify")
-async def verify_admin(payload: AdminVerifyRequest):
-    """Verify the shared admin password against the bcrypt hash in the env."""
-    hashed = os.environ.get("ADMIN_PASSWORD_HASH", "")
-    ok = False
-    if hashed and payload.password:
-        try:
-            ok = bcrypt.checkpw(payload.password.encode(), hashed.encode())
-        except Exception:
-            ok = False
-    if not ok:
-        return {"ok": False, "message": "Contraseña de administrador incorrecta."}
-    return {"ok": True, "message": "Acceso de administrador concedido.", "token": create_admin_token()}
-
-
 @api_router.get("/facades/count")
 async def facades_count():
     return {"count": len(FACADES)}
@@ -445,12 +395,12 @@ async def get_project_panels():
 
 
 @api_router.put("/project/panels", response_model=ProjectPanelsResponse)
-async def update_project_panels(payload: ProjectPanelsUpdate, _admin=Depends(require_admin)):
+async def update_project_panels(payload: ProjectPanelsUpdate):
     return await project_panels.save(payload)
 
 
 @api_router.post("/facades")
-async def save_facades(payload: FacadesPayload, _admin=Depends(require_admin)):
+async def save_facades(payload: FacadesPayload):
     """Persist the per-object cardinal orientation computed by the 3D viewer."""
     global FACADES
     clean = {k: v for k, v in payload.facades.items() if k in NAME_SET and v in VALID_FACADES}
@@ -468,7 +418,7 @@ async def dims_count():
 
 
 @api_router.post("/dims")
-async def save_dims(payload: DimsPayload, _admin=Depends(require_admin)):
+async def save_dims(payload: DimsPayload):
     """Persist per-object bounding box sizes [sx, sy, sz] computed by the 3D viewer."""
     global DIMS
     clean = {}
@@ -493,7 +443,7 @@ async def list_tipos():
 
 
 @api_router.post("/tipos")
-async def create_tipo(payload: TipoUpsert, _admin=Depends(require_admin)):
+async def create_tipo(payload: TipoUpsert):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="El nombre del tipo es obligatorio")
@@ -504,7 +454,7 @@ async def create_tipo(payload: TipoUpsert, _admin=Depends(require_admin)):
 
 
 @api_router.put("/tipos/{name}")
-async def rename_tipo(name: str, payload: TipoUpsert, _admin=Depends(require_admin)):
+async def rename_tipo(name: str, payload: TipoUpsert):
     new_name = payload.name.strip()
     if not new_name:
         raise HTTPException(status_code=422, detail="El nombre del tipo es obligatorio")
@@ -516,7 +466,7 @@ async def rename_tipo(name: str, payload: TipoUpsert, _admin=Depends(require_adm
 
 
 @api_router.delete("/tipos/{name}")
-async def delete_tipo(name: str, _admin=Depends(require_admin)):
+async def delete_tipo(name: str):
     await db.tipos.delete_one({"name": name})
     await db.molds.update_many({"tipo": name}, {"$set": {"tipo": None}})
     return {"deleted": True, "name": name}
@@ -533,7 +483,7 @@ async def list_molds():
 
 
 @api_router.post("/molds")
-async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
+async def save_mold(payload: MoldUpsert):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="El nombre del molde es obligatorio")
@@ -556,7 +506,7 @@ async def save_mold(payload: MoldUpsert, _admin=Depends(require_admin)):
 
 
 @api_router.delete("/molds/{name}")
-async def delete_mold(name: str, _admin=Depends(require_admin)):
+async def delete_mold(name: str):
     await db.molds.delete_one({"name": name})
     now = datetime.now(timezone.utc).isoformat()
     await db.tags.update_many(
@@ -570,7 +520,7 @@ ALLOWED_IMG = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic
 
 
 @api_router.post("/upload")
-async def upload_photo(file: UploadFile = File(...), _admin=Depends(require_admin)):
+async def upload_photo(file: UploadFile = File(...)):
     if file.content_type not in ALLOWED_IMG:
         raise HTTPException(status_code=422, detail="Solo se permiten imágenes (JPG, PNG, WEBP, GIF)")
     data = await file.read()
@@ -595,7 +545,7 @@ async def upload_photo(file: UploadFile = File(...), _admin=Depends(require_admi
 
 
 @api_router.post("/upload/pdf")
-async def upload_pdf(file: UploadFile = File(...), _admin=Depends(require_admin)):
+async def upload_pdf(file: UploadFile = File(...)):
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=422, detail="Solo se permiten archivos PDF")
     data = await file.read()
@@ -672,7 +622,7 @@ async def list_photos(
 
 
 @api_router.delete("/photos")
-async def delete_photo(object_name: str, photo: str, _admin=Depends(require_admin)):
+async def delete_photo(object_name: str, photo: str):
     """Remove the obra photo from a tag and soft-delete its file record."""
     doc = await db.tags.find_one({"object_name": object_name})
     t = Tag.from_mongo(doc)
@@ -839,14 +789,14 @@ async def upsert_tag_doc(payload: TagUpsert) -> dict:
 
 
 @api_router.put("/tags")
-async def upsert_tag(payload: TagUpsert, _admin=Depends(require_admin)):
+async def upsert_tag(payload: TagUpsert):
     async with project_panels.write_lock:
         await project_panels.check_assignment([payload.object_name], payload.molde)
         return await upsert_tag_doc(payload)
 
 
 @api_router.put("/tags/bulk")
-async def bulk_upsert_tags(payload: BulkTagUpsert, _admin=Depends(require_admin)):
+async def bulk_upsert_tags(payload: BulkTagUpsert):
     names = list(dict.fromkeys(n for n in payload.object_names if n in NAME_SET))
     if not names:
         raise HTTPException(status_code=422, detail="Sin piezas válidas seleccionadas")
@@ -861,7 +811,7 @@ async def bulk_upsert_tags(payload: BulkTagUpsert, _admin=Depends(require_admin)
 
 
 @api_router.delete("/tags")
-async def delete_tag(object_name: str, _admin=Depends(require_admin)):
+async def delete_tag(object_name: str):
     if object_name not in NAME_SET:
         raise HTTPException(status_code=404, detail="Objeto no encontrado")
     doc = await db.tags.find_one({"object_name": object_name})
@@ -1139,8 +1089,17 @@ async def schedule_source():
 schedule_service = ScheduleService(db, schedule_source)
 api_router.include_router(create_export_router(schedule_service))
 api_router.include_router(create_installation_export_router(phase_store))
-api_router.include_router(create_schedule_router(schedule_service, require_admin))
-api_router.include_router(create_phase_router(phase_store, lambda: FACADE_NAMES, require_admin))
+api_router.include_router(create_schedule_router(schedule_service))
+api_router.include_router(create_phase_router(phase_store, lambda: FACADE_NAMES))
+
+
+def apply_restored_settings(settings):
+    global FACADES, DIMS
+    FACADES = settings["facades"]
+    DIMS = settings["dims"]
+
+
+api_router.include_router(create_backup_router(db, STATIC_DIR, storage_get_object, put_object, apply_restored_settings))
 app.include_router(api_router)
 
 app.add_middleware(
