@@ -5,6 +5,7 @@ import { useSchedule } from "../components/schedule/useSchedule";
 import { MoldReadinessTimeline } from "../components/schedule/MoldReadinessTimeline";
 import { buildReadiness } from "../components/schedule/moldReadiness";
 import ReadinessExport from "../components/schedule/ReadinessExport";
+import MoldProductionTimeline from "../components/schedule/MoldProductionTimeline";
 
 export default function MoldReadinessPage() {
   const { data, loading, error, refresh } = useSchedule();
@@ -27,7 +28,10 @@ export default function MoldReadinessPage() {
 
       {!data && loading && <div role="status" className="flex justify-center py-20" data-testid="mold-readiness-loading"><Loader2 className="animate-spin" aria-label="Cargando plazos de moldes" /></div>}
 
-      {data && readiness && <MoldReadinessTimeline readiness={readiness} />}
+      {data && readiness && <>
+        <MoldProductionTimeline readiness={readiness} />
+        <MoldReadinessTimeline readiness={readiness} />
+      </>}
     </div>
   </div>;
 }
