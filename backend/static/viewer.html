@@ -133,7 +133,9 @@ let tags = {};
 let phases = {};
 let phaseVisible = true;
 let tagsVisible = true;
+let weekHighlighted = new Set();
 function shownTag(name) {
+  if (weekHighlighted.has(name)) return { color: '#007AFF' };
   const ph = phaseVisible && phases[name];
   return ph ? { color: ph.color } : (tagsVisible && tags[name]) || null;
 }
@@ -153,7 +155,7 @@ function isVisibleFor(name) {
 }
 
 function isHighlighted(name) {
-  return name === selectedName || multiSelected.has(name);
+  return name === selectedName || multiSelected.has(name) || weekHighlighted.has(name);
 }
 
 function refreshMesh(name) {
@@ -223,6 +225,13 @@ window.viewerAPI = {
   applyPhases(map) {
     phases = map || {};
     if (loaded) applyAll();
+  },
+  highlightWeek(names) {
+    weekHighlighted = new Set((names || []).filter((name) => meshesByName[name]));
+    if (weekHighlighted.size) isolation = 'all';
+    if (loaded) applyAll();
+    send({ type: 'weekHighlight', count: weekHighlighted.size,
+      visible: meshList.filter((mesh) => mesh.visible).length, total: meshList.length });
   },
   setPhaseVisible(on) {
     phaseVisible = !!on;

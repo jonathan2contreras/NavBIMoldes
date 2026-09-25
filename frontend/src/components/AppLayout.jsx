@@ -9,7 +9,8 @@ const TABS = [
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
   { to: "/molds", label: "Moldes", icon: Layers, testId: "tab-molds", adminOnly: true },
   { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
-  { to: "/schedule", label: "Cronograma", icon: CalendarRange, testId: "tab-schedule" },
+  { to: "/schedule", label: "Fabricación", icon: CalendarRange, testId: "tab-schedule" },
+  { to: "/installation", label: "Instalación", icon: CalendarRange, testId: "tab-installation" },
 ];
 
 export default function AppLayout() {

@@ -53,6 +53,7 @@ export const api = {
   fillSchedule: (revision) => req("/schedule/fill", { method: "POST", body: JSON.stringify({ revision }) }),
   moveSchedulePanel: (body) => req("/schedule/panel", { method: "PATCH", body: JSON.stringify(body) }),
   getPhases: () => req("/phases"),
+  movePhaseWeek: (body) => req("/phases/week", { method: "PATCH", body: JSON.stringify(body) }),
   createFront: (name) => req("/phases/fronts", { method: "POST", body: JSON.stringify({ name }) }),
   deleteFront: (id) => req(`/phases/fronts/${encodeURIComponent(id)}`, { method: "DELETE" }),
   assignPhase: (body) => req("/phases/assign", { method: "POST", body: JSON.stringify(body) }),

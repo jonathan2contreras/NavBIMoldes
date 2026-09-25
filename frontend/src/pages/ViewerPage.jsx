@@ -13,7 +13,7 @@ import { useRole } from "../context/RoleContext";
 import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
 import { NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
-export default function ViewerPage() {
+export default function ViewerPage({ installationSelection, installationPlan, compact = false }) {
   const { isAdmin } = useRole();
   const iframeRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -32,6 +32,9 @@ export default function ViewerPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [plan, setPlan] = useState({ fronts: [], items: [] });
   const [phaseVisible, setPhaseVisible] = useState(true);
+  const [selectedPhase, setSelectedPhase] = useState(null);
+  const [highlightStatus, setHighlightStatus] = useState(null);
+  const highlightedPhase = installationSelection === undefined ? selectedPhase : installationSelection;
   const [tagsVisible, setTagsVisible] = useState(true);
   const [phaseOpen, setPhaseOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -97,8 +100,16 @@ export default function ViewerPage() {
   }, []);
 
   useEffect(() => {
-    api.getPhases().then(setPlan).catch(() => {});
-  }, []);
+    if (installationPlan) setPlan(installationPlan);
+    else api.getPhases().then(setPlan).catch(() => {});
+  }, [installationPlan]);
+
+  useEffect(() => {
+    if (loading) return;
+    const names = highlightedPhase ? plan.items.filter((i) => i.front_id === highlightedPhase.front_id && i.week === highlightedPhase.week).map((i) => i.object_name) : [];
+    if (highlightedPhase) setIsoFilter("all");
+    sendCmd("highlightWeek", [names]);
+  }, [highlightedPhase, plan, loading, sendCmd]);
 
   // The phase layer is resent whenever the list changes or the model finishes loading.
   useEffect(() => {
@@ -171,6 +182,8 @@ export default function ViewerPage() {
       } else if (msg.type === "select") {
         setHintVisible(false);
         openObject(msg.name);
+      } else if (msg.type === "weekHighlight" && e.source === iframeRef.current?.contentWindow) {
+        setHighlightStatus({ count: msg.count, visible: msg.visible, total: msg.total });
       } else if (msg.type === "multiselect") {
         setMultiNames(msg.names || []);
       }
@@ -245,7 +258,8 @@ export default function ViewerPage() {
         data-testid="model-viewer-iframe"
       />
 
-      <div className="pointer-events-none absolute left-4 right-4 top-3">
+      {compact && <div className="pointer-events-none absolute left-4 top-3 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold">Modelo 3D · Plan de instalación</div>}
+      {!compact && <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
           {!!report && (
             <div className="mb-2.5 flex flex-wrap items-center gap-3" data-testid="tagged-total-panel">
@@ -325,10 +339,13 @@ export default function ViewerPage() {
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: f.color }} />
                 {f.name} ({f.weeks.reduce((n, w) => n + w.items.length, 0)})
                 {f.weeks.map((w) => (
-                  <span key={w.week} className="flex h-6 items-center gap-1 rounded-full bg-[#F2F2F7] px-2 text-[11px]" title={`Semana del ${weekShort(w.week)} · ${w.items.length} paneles`} data-testid={`phase-legend-week-${f.id}-${w.week}`}>
+                  <button key={w.week} type="button"
+                    aria-pressed={selectedPhase?.front_id === f.id && selectedPhase?.week === w.week}
+                    onClick={() => setSelectedPhase((previous) => previous?.front_id === f.id && previous?.week === w.week ? null : { front_id: f.id, week: w.week })}
+                    className="flex h-6 items-center gap-1 rounded-full bg-[#F2F2F7] px-2 text-[11px] aria-pressed:bg-[#007AFF] aria-pressed:text-white" title={`Resaltar semana del ${weekShort(w.week)} · ${w.items.length} paneles`} data-testid={`phase-legend-week-${f.id}-${w.week}`}>
                     <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: weekColor(f, w.index) }} />
                     Sem. {weekShort(w.week)} ({w.items.length})
-                  </span>
+                  </button>
                 ))}
               </span>
             ))}
@@ -356,7 +373,14 @@ export default function ViewerPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
+
+      {!loading && !error && highlightedPhase && <div className="absolute bottom-16 left-4 right-4 flex justify-center">
+        <div role="status" data-testid="week-highlight-status" data-count={highlightStatus?.count ?? 0} data-visible={highlightStatus?.visible ?? 0} data-total={highlightStatus?.total ?? 0} className="flex items-center gap-3 rounded-xl bg-white/95 px-4 py-3 text-sm shadow">
+          <span><strong className="text-[#007AFF]">{highlightStatus?.count ?? 0} paneles resaltados</strong> · Sem. {weekShort(highlightedPhase.week)} · Sin ocultar el modelo</span>
+          {!compact && <button className="rounded-lg border px-2 py-1" onClick={() => setSelectedPhase(null)}>Quitar resaltado</button>}
+        </div>
+      </div>}
 
       {!loading && !error && multiMode && multiNames.length > 0 && (
         <div className="absolute bottom-6 left-4 right-4 flex justify-center">

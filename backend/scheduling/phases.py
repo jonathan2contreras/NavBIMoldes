@@ -23,6 +23,13 @@ class AssignRequest(BaseModel):
     week: CalendarDate
 
 
+class MoveWeekRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    front_id: str
+    week: CalendarDate
+    new_week: CalendarDate
+
+
 class UnassignRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     object_names: list[str] = Field(min_length=1)
@@ -55,6 +62,31 @@ def create_phase_router(store, valid_names, require_admin):
 
     @router.get("")
     async def get_phases():
+        return await store.read()
+
+    @router.patch("/week")
+    async def move_week(payload: MoveWeekRequest, _admin=Depends(require_admin)):
+        week = monday(payload.week).isoformat()
+        new_week = monday(payload.new_week).isoformat()
+        plan = await store.read()
+        source = {"front_id": payload.front_id, "week": week}
+        destination = {"front_id": payload.front_id, "week": new_week}
+        if not any(all(i[k] == v for k, v in source.items()) for i in plan["items"]):
+            raise HTTPException(404, "La semana ya no existe. Actualiza el plan.")
+        if week == new_week:
+            return plan
+        # Move only this front/week, preserving panel order and all other assignments.
+        # Reject occupied destinations rather than silently merging two groups.
+        result = await store.collection.update_one(
+            {"_id": "plan", "$and": [
+                {"items": {"$elemMatch": source}},
+                {"items": {"$not": {"$elemMatch": destination}}},
+            ]},
+            {"$set": {"items.$[item].week": new_week}},
+            array_filters=[{"item.front_id": payload.front_id, "item.week": week}],
+        )
+        if not result.modified_count:
+            raise HTTPException(409, "La semana destino está ocupada en este frente o el plan cambió. Actualiza e intenta otra fecha.")
         return await store.read()
 
     @router.post("/fronts")
