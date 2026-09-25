@@ -1,5 +1,7 @@
 """Shareable exports (Excel / PDF) of the current schedule and the installation plan."""
 import re
+from collections import defaultdict
+from copy import deepcopy
 from datetime import date as CalendarDate, timedelta
 from io import BytesIO
 from xml.sax.saxutils import escape
@@ -106,18 +108,20 @@ def tint(hex_color, alpha=0.2):
 def to_gantt_pdf(data):
     """Mold rows × day columns, one page per block of GANTT_DAYS days."""
     panels = [p for p in data["panels"] if p.get("date")]
-    cells = {(p["molde"], p["date"]): p for p in panels}
+    cells = defaultdict(list)
+    for panel in panels:
+        cells[(panel["molde"], panel["date"])].append(panel)
     natural = lambda name: [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
     molds = sorted(data["molds"], key=lambda m: natural(m["name"]))
     styles = getSampleStyleSheet()
     out = BytesIO()
     doc = SimpleDocTemplate(out, pagesize=landscape(A4), leftMargin=1 * cm, rightMargin=1 * cm,
                             topMargin=1 * cm, bottomMargin=1 * cm, title="Diagrama de Gantt")
-    story = [Paragraph("Diagrama de Gantt · Cronograma de fabricación", styles["Title"])]
+    title = Paragraph("Diagrama de Gantt · Cronograma de fabricación", styles["Title"])
     if not panels:
-        story.append(Paragraph("No hay paneles programados.", styles["Normal"]))
-        doc.build(story)
+        doc.build([title, Paragraph("No hay paneles programados.", styles["Normal"])])
         return out.getvalue()
+    pages = []
     start, finish = CalendarDate.fromisoformat(data["first_date"]), CalendarDate.fromisoformat(data["finish_date"])
     cell_style = styles["BodyText"].clone("gantt", fontSize=6.5, leading=8, alignment=0)
     mold_style = styles["BodyText"].clone("gantt-mold", fontSize=8, leading=10)
@@ -147,31 +151,35 @@ def to_gantt_pdf(data):
             ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E5E5EA")),
         ]
-        for r, mold in enumerate(molds, start=1):
-            color = mold.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", mold.get("color") or "") else "#8E8E93"
-            row = [Paragraph(f"<b>{escape(mold['name'])}</b><br/>"
-                             f"<font size='7' color='#636366'>{mold.get('scheduled', 0)} / {mold.get('total', 0)} · "
-                             f"{escape(mold.get('tipo') or 'Sin tipo')}</font>", mold_style)]
-            style.append(("LINEBEFORE", (0, r), (0, r), 3, colors.HexColor(color)))
-            for c, key in enumerate(keys, start=1):
-                p = cells.get((mold["name"], key))
-                if p:
-                    code = p["code"]
-                    quantity = re.search(r"\[([^\]]*)\]", code)
-                    area = f"{p.get('area') or 0:g}".replace(".", ",")
-                    row.append(Paragraph(f"<b>{escape(code.split(' [', 1)[0])}</b><br/>"
-                                         f"<font size='7' color='#636366'>{escape(quantity.group(1) if quantity else '1 panel')}</font><br/>"
-                                         f"<font size='7' color='#007AFF'><b>{area} m²</b></font>", cell_style))
-                    panel_color = p.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", p.get("color") or "") else color
-                    style += [("BACKGROUND", (c, r), (c, r), tint(panel_color, 0.13)),
-                              ("LINEBEFORE", (c, r), (c, r), 2, colors.HexColor(panel_color))]
-                else:
-                    row.append("")
-                    if days[c - 1].weekday() == 6:
-                        style.append(("BACKGROUND", (c, r), (c, r), colors.HexColor("#F2F2F7")))
-            rows.append(row)
-        counts = [sum(1 for m in molds if (m["name"], k) in cells) for k in keys]
-        areas = [round(sum(cells[(m["name"], k)].get("area") or 0 for m in molds if (m["name"], k) in cells), 2) for k in keys]
+        for mold in molds:
+            for copy in range(mold.get("copies", 1)):
+                r = len(rows)
+                color = mold.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", mold.get("color") or "") else "#8E8E93"
+                label = escape(mold["name"]) + (f" · copia {copy + 1}" if copy else "")
+                details = (f"<br/><font size='7' color='#636366'>{mold.get('scheduled', 0)} / {mold.get('total', 0)} · "
+                           f"{escape(mold.get('tipo') or 'Sin tipo')}</font>") if not copy else ""
+                row = [Paragraph(f"<b>{label}</b>{details}", mold_style)]
+                style.append(("LINEBEFORE", (0, r), (0, r), 3, colors.HexColor(color)))
+                for c, key in enumerate(keys, start=1):
+                    group = cells.get((mold["name"], key), [])
+                    p = group[copy] if copy < len(group) else None
+                    if p:
+                        code = p["code"]
+                        quantity = re.search(r"\[([^\]]*)\]", code)
+                        area = f"{p.get('area') or 0:g}".replace(".", ",")
+                        row.append(Paragraph(f"<b>{escape(code.split(' [', 1)[0])}</b><br/>"
+                                             f"<font size='7' color='#636366'>{escape(quantity.group(1) if quantity else '1 panel')}</font><br/>"
+                                             f"<font size='7' color='#007AFF'><b>{area} m²</b></font>", cell_style))
+                        panel_color = p.get("color") if re.fullmatch(r"#[0-9a-fA-F]{6}", p.get("color") or "") else color
+                        style += [("BACKGROUND", (c, r), (c, r), tint(panel_color, 0.13)),
+                                  ("LINEBEFORE", (c, r), (c, r), 2, colors.HexColor(panel_color))]
+                    else:
+                        row.append("")
+                        if days[c - 1].weekday() == 6:
+                            style.append(("BACKGROUND", (c, r), (c, r), colors.HexColor("#F2F2F7")))
+                rows.append(row)
+        counts = [sum(len(cells[(m["name"], k)]) for m in molds) for k in keys]
+        areas = [round(sum(p.get("area") or 0 for m in molds for p in cells[(m["name"], k)]), 2) for k in keys]
         rows.append(["Paneles / día"] + [f"{n} / {0 if days[i].weekday() == 6 else data['daily_capacity']}" for i, n in enumerate(counts)])
         rows.append(["m² / día"] + [f"{a:g}".replace(".", ",") + " m²" if a else "—" for a in areas])
         style += [("BACKGROUND", (0, -2), (-1, -1), colors.HexColor("#F2F2F7")),
@@ -181,9 +189,20 @@ def to_gantt_pdf(data):
         width = (landscape(A4)[0] - 2 * cm - 12 - 3.2 * cm) / GANTT_DAYS
         table = Table(rows, colWidths=[3.2 * cm] + [width] * GANTT_DAYS, repeatRows=1)
         table.setStyle(TableStyle(style))
-        if len(story) > 1:
+        pages.append([Paragraph(f"{days[0].strftime('%d/%m/%Y')} – {days[-1].strftime('%d/%m/%Y')}", styles["Heading3"]), table])
+    # Fit each complete two-week block on its own sheet, even when molds have many copies.
+    pages[0].insert(0, title)
+    available_width = landscape(A4)[0] - 2 * cm - 12  # ReportLab frame padding.
+    content_height = max(sum(deepcopy(part).wrap(available_width, 100000)[1] + part.getSpaceBefore() + part.getSpaceAfter()
+                             for part in page) for page in pages)
+    page_height = max(landscape(A4)[1], content_height + 2 * cm + 48)
+    doc = SimpleDocTemplate(out, pagesize=(landscape(A4)[0], page_height), leftMargin=cm, rightMargin=cm,
+                            topMargin=cm, bottomMargin=cm, title="Diagrama de Gantt")
+    story = []
+    for page in pages:
+        if story:
             story.append(PageBreak())
-        story += [Paragraph(f"{days[0].strftime('%d/%m/%Y')} – {days[-1].strftime('%d/%m/%Y')}", styles["Heading3"]), table]
+        story.extend(page)
     doc.build(story)
     return out.getvalue()
 
