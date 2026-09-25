@@ -1,0 +1,33 @@
+# Despliegue del frontend (React + CRA/craco) en Netlify.
+# Netlify conecta este repositorio y construye solo la carpeta `frontend`.
+#
+# IMPORTANTE: define la variable de entorno REACT_APP_BACKEND_URL en Netlify
+# (Site settings → Environment variables) con la URL pública del backend FastAPI,
+# por ejemplo https://api.tudominio.com (sin barra final). Se incrusta en el build.
+
+[build]
+  base = "frontend"
+  command = "yarn build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # CRA falla el build si CI=true y hay warnings; Netlify lo activa por defecto.
+  CI = "false"
+
+# SPA: React Router maneja las rutas en el cliente.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# El service worker y el manifiesto no deben quedar cacheados.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"

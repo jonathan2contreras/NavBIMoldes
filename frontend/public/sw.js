@@ -1,6 +1,6 @@
 // Service worker mínimo: permite instalar la app en el móvil.
 // Estrategia red-primero para el mismo origen; nunca cachea la API (otro origen).
-const CACHE = "bimtracker-v1";
+const CACHE = "nabimoldes-v1";
 
 self.addEventListener("install", () => self.skipWaiting());
 

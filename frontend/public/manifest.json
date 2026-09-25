@@ -1,6 +1,6 @@
 {
-  "short_name": "BIMTracker",
-  "name": "BIMTracker — Moldes y paneles",
+  "short_name": "NaBiMoldes",
+  "name": "NaBiMoldes — Moldes y paneles",
   "description": "Seguimiento de moldes, cronograma de fabricación y avance de paneles sobre el modelo 3D.",
   "lang": "es",
   "start_url": "/",

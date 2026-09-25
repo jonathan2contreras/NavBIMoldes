@@ -1,4 +1,4 @@
-# Base44 dev notes — BIMTracker
+# Base44 dev notes — NaBiMoldes
 
 - Stack: FastAPI backend (`backend/server.py`, port 8001) + CRA/craco React frontend (port 3000) + MongoDB. Run with `docker compose -f docker-compose.base44.yml up -d`.
 - Wiring is separate-origin: the frontend calls `REACT_APP_BACKEND_URL=https://8001-$BASE44_PUBLIC_HOST_SUFFIX`. CORS is `*`; there are no login tokens or session cookies.
