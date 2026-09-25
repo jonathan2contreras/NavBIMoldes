@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from .models import GenerateRequest, MoveRequest, RevisionRequest, ScheduleResponse
+from .models import GenerateRequest, MoldCopyRequest, MoveRequest, RevisionRequest, ScheduleResponse
 
 
 def create_schedule_router(service, require_admin):
@@ -20,6 +20,10 @@ def create_schedule_router(service, require_admin):
     @router.post("/fill", response_model=ScheduleResponse)
     async def fill_schedule(payload: RevisionRequest, _admin=Depends(require_admin)):
         return await service.save(payload, fill=True)
+
+    @router.patch("/mold-copies", response_model=ScheduleResponse)
+    async def set_mold_copies(payload: MoldCopyRequest, _admin=Depends(require_admin)):
+        return await service.set_mold_copies(payload)
 
     @router.patch("/panel", response_model=ScheduleResponse)
     async def move_schedule_panel(payload: MoveRequest, _admin=Depends(require_admin)):

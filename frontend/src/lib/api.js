@@ -52,6 +52,7 @@ export const api = {
   saveSchedule: (revision) => req("/schedule/save", { method: "POST", body: JSON.stringify({ revision }) }),
   fillSchedule: (revision) => req("/schedule/fill", { method: "POST", body: JSON.stringify({ revision }) }),
   moveSchedulePanel: (body) => req("/schedule/panel", { method: "PATCH", body: JSON.stringify(body) }),
+  setScheduleMoldCopies: (body) => req("/schedule/mold-copies", { method: "PATCH", body: JSON.stringify(body) }),
   getPhases: () => req("/phases"),
   movePhaseWeek: (body) => req("/phases/week", { method: "PATCH", body: JSON.stringify(body) }),
   createFront: (name) => req("/phases/fronts", { method: "POST", body: JSON.stringify({ name }) }),

@@ -23,11 +23,12 @@ def plan_order(panels):
     return ordered_panels(panels)
 
 
-def plan(panels, start, capacity, fixed=None):
+def plan(panels, start, capacity, fixed=None, mold_copies=None):
+    mold_copies = mold_copies or {}
     entries = list(fixed or [])
-    validate_resources(panels, entries, start, capacity)
+    validate_resources(panels, entries, start, capacity, mold_copies)
     assigned = {entry["object_name"] for entry in entries}
-    occupied = {(entry["date"], entry["molde"]) for entry in entries}
+    occupied = Counter((entry["date"], entry["molde"]) for entry in entries)
     counts = Counter(entry["date"] for entry in entries)
     queues = defaultdict(deque)
     rank = {}
@@ -43,31 +44,34 @@ def plan(panels, start, capacity, fixed=None):
         if day.weekday() != 6:
             key = day.isoformat()
             free_slots = max(0, capacity - counts[key])
-            available = [queue[0] for mold, queue in queues.items() if (key, mold) not in occupied]
-            # Every chosen panel uses a different mold. Never stop at a blocked facade/floor.
-            candidates = sorted(available, key=lambda panel: rank[panel["object_name"]])[:free_slots]
-            for panel in candidates:
+            while free_slots:
+                available = [queue[0] for mold, queue in queues.items()
+                             if occupied[key, mold] < mold_copies.get(mold, 1)]
+                if not available:
+                    break
+                panel = min(available, key=lambda item: rank[item["object_name"]])
                 mold = panel["molde"]
                 entries.append({"object_name": panel["object_name"], "molde": mold, "date": key})
-                occupied.add((key, mold))
+                occupied[key, mold] += 1
                 counts[key] += 1
+                free_slots -= 1
                 queues[mold].popleft()
                 if not queues[mold]:
                     del queues[mold]
         day += timedelta(days=1)
-    validate_resources(panels, entries, start, capacity)
+    validate_resources(panels, entries, start, capacity, mold_copies)
     return entries
 
 
-def move(entries, panel, target, start, capacity):
+def move(entries, panel, target, start, capacity, mold_copies=None):
     rest = [entry for entry in entries if entry["object_name"] != panel["object_name"]]
     if target is None:
         return rest
     validate_day(target, start)
     key = target.isoformat()
     same_day = [entry for entry in rest if entry["date"] == key]
-    if any(entry["molde"] == panel["molde"] for entry in same_day):
-        raise HTTPException(409, f"El molde {panel['molde']} ya tiene un panel ese día. Solo se permite uno por molde y día.")
+    if sum(entry["molde"] == panel["molde"] for entry in same_day) >= (mold_copies or {}).get(panel["molde"], 1):
+        raise HTTPException(409, f"El molde {panel['molde']} ya alcanzó su capacidad ese día.")
     if len(same_day) >= capacity:
         raise HTTPException(409, f"Ese día ya tiene {capacity} paneles. Se ha alcanzado la capacidad diaria.")
     return rest + [{"object_name": panel["object_name"], "molde": panel["molde"], "date": key}]

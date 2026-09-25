@@ -42,7 +42,7 @@ export const ScheduleControls = ({ data, admin, busy, onGenerate, onSave, onFill
       <Button type="button" variant="outline" className="h-10" disabled={busy || !data.unscheduled || changed || data.needs_replan || !!data.awaiting_location} onClick={onFill} data-testid="schedule-fill-button"><Plus /> Programar pendientes</Button>
     </form> : <div className="flex flex-wrap gap-5 text-sm" data-testid="schedule-readonly-settings"><span><CalendarDays size={15} className="mr-2 inline" />Inicio: <strong>{dateLabel(data.start_date)}</strong></span><span>Objetivo: <strong>{data.daily_capacity} paneles/día</strong></span></div>}
     {admin && changed && <p role="status" className="mt-3 text-xs font-semibold text-[#AE6500]" data-testid="schedule-settings-draft">Cambios sin aplicar · Objetivo actual del calendario: {data.daily_capacity} paneles/día</p>}
-    <p className="mt-3 text-xs text-[#636366]" data-testid="schedule-working-days">Lunes a sábado · 1 panel por molde al día</p>
+    <p className="mt-3 text-xs text-[#636366]" data-testid="schedule-working-days">Lunes a sábado · 1 panel por copia de molde al día</p>
     {error && <p role="alert" className="mt-3 text-sm text-red-700" data-testid="schedule-settings-error">{error}</p>}
     <Dialog open={!!pending} onOpenChange={(open) => { if (!busy && !open) setPending(null); }}>
       <DialogContent className="w-[calc(100%_-_2rem)] max-w-md rounded-lg" data-testid="schedule-replan-dialog" closeTestId="schedule-replan-close" overlayTestId="schedule-replan-overlay">

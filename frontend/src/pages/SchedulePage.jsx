@@ -27,6 +27,7 @@ export default function SchedulePage() {
   const select = (day) => setSelected(day);
   const goToDay = (day) => { setSelected(day); setRangeStart(day); };
   const move = (object_name, date) => mutate(() => api.moveSchedulePanel({ object_name, date, revision: data.revision }), date ? "Fecha de fabricación guardada." : "Panel devuelto a pendientes.");
+  const setMoldCopies = (mold, copies) => mutate(() => api.setScheduleMoldCopies({ mold, copies, revision: data.revision }), `${mold}: ${copies} ${copies === 1 ? "copia" : "copias"}. Cronograma recalculado.`);
   const generate = async (start_date, daily_capacity, revision) => {
     const result = await mutate(() => api.generateSchedule({ start_date, daily_capacity, revision }), `Objetivo de ${daily_capacity} paneles/día aplicado y guardado.`);
     if (result) { setRangeStart(result.start_date); setSelected(result.first_date || result.start_date); }
@@ -55,7 +56,7 @@ export default function SchedulePage() {
             {[["board", "Tablero"], ["gantt", "Gantt por molde"]].map(([key, label]) => <button key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)} data-testid={`schedule-view-${key}`} className={`rounded-md px-3 py-1.5 text-xs font-bold ${view === key ? "bg-[#1C1C1E] text-white" : "text-[#3A3A3C]"}`}>{label}</button>)}
           </div>
           {view === "board" ? <ScheduleBoard data={data} selected={selected} onSelect={select} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} rangeStart={rangeStart} setRangeStart={setRangeStart} /> :
-          <GanttTimeline data={data} selected={selected} onSelect={select} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} rangeStart={rangeStart} setRangeStart={setRangeStart} />}
+          <GanttTimeline data={data} selected={selected} onSelect={select} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} onSetCopies={setMoldCopies} rangeStart={rangeStart} setRangeStart={setRangeStart} />}
           </div>
           <DayDetails data={data} selected={selected} onSelect={goToDay} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} />
         </div>}

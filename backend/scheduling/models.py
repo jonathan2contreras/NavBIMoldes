@@ -20,6 +20,11 @@ class GenerateRequest(RevisionRequest):
         return value
 
 
+class MoldCopyRequest(RevisionRequest):
+    mold: str = Field(min_length=1)
+    copies: int = Field(strict=True, ge=1, le=100)
+
+
 class MoveRequest(RevisionRequest):
     object_name: str = Field(min_length=1)
     date: Optional[CalendarDate]
@@ -72,6 +77,7 @@ class ScheduleMold(BaseModel):
     color: str
     total: int
     scheduled: int
+    copies: int = 1
 
 
 class ProductionDay(BaseModel):

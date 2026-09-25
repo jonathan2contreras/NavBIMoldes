@@ -15,9 +15,10 @@ def validate_day(value, start):
         raise HTTPException(422, "La fecha supera el horizonte de planificación de 10 años.")
 
 
-def validate_resources(panels, entries, start, capacity):
-    names, molds = set(), set()
-    counts = Counter()
+def validate_resources(panels, entries, start, capacity, mold_copies=None):
+    names = set()
+    counts, mold_counts = Counter(), Counter()
+    mold_copies = mold_copies or {}
     for entry in entries:
         panel = panels.get(entry["object_name"])
         if not panel or panel["molde"] != entry["molde"]:
@@ -30,10 +31,11 @@ def validate_resources(panels, entries, start, capacity):
             raise HTTPException(422, "El cronograma contiene una fecha no válida.")
         validate_day(day, start)
         key = day.isoformat()
-        if (key, entry["molde"]) in molds:
-            raise HTTPException(409, f"El molde {entry['molde']} ya tiene un panel ese día. Solo se permite uno por molde y día.")
+        mold_key = (key, entry["molde"])
+        mold_counts[mold_key] += 1
+        if mold_counts[mold_key] > mold_copies.get(entry["molde"], 1):
+            raise HTTPException(409, f"El molde {entry['molde']} ya alcanzó su capacidad ese día.")
         names.add(entry["object_name"])
-        molds.add((key, entry["molde"]))
         counts[key] += 1
         if counts[key] > capacity:
             raise HTTPException(409, f"Ese día supera el objetivo de {capacity} paneles. Recalcula para aplicar la nueva cantidad.")

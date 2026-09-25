@@ -14,10 +14,10 @@ export const GanttTask = ({ panel, disabled, onSelect }) => {
   </button>;
 };
 
-export const GanttCell = ({ mold, day, panel, selected, admin, busy, start, onSelect }) => {
-  const { setNodeRef, isOver } = useDroppable({ id: `${mold.name}|${day}`, data: { day, molde: mold.name }, disabled: !admin || busy });
+export const GanttCell = ({ mold, day, panel, copy = 0, selected, admin, busy, start, onSelect }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: `${mold.name}|${day}|${copy}`, data: { day, molde: mold.name }, disabled: !admin || busy });
   const rest = sunday(day) || day < start;
-  return <div ref={setNodeRef} data-testid={`gantt-cell-${panelKey(mold.name)}-${day}`} className={`gantt-cell ${rest ? "gantt-rest" : ""} ${selected ? "gantt-selected" : ""} ${isOver ? "gantt-over" : ""}`}>
+  return <div ref={setNodeRef} data-testid={`gantt-cell-${panelKey(mold.name)}-${day}${copy ? `-${copy + 1}` : ""}`} className={`gantt-cell ${rest ? "gantt-rest" : ""} ${selected ? "gantt-selected" : ""} ${isOver ? "gantt-over" : ""}`}>
     {panel ? <GanttTask panel={panel} disabled={!admin || busy} onSelect={onSelect} /> : <button className="h-full w-full rounded-sm focus-visible:outline-[#007AFF]" aria-label={`${mold.name}, ${dateLabel(day)}, ${rest ? "no laborable" : "sin panel"}`} onClick={() => onSelect(day)} data-testid={`gantt-empty-${panelKey(mold.name)}-${day}`} />}
   </div>;
 };

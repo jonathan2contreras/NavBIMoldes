@@ -12,7 +12,9 @@ export const DayDetails = ({ data, selected, onSelect, admin, busy, onMove }) =>
   const pending = useMemo(() => data.panels.filter((p) => !p.date && `${p.code} ${p.molde} ${p.floor_label} ${p.facade_label}`.toLocaleLowerCase("es").includes(query.toLocaleLowerCase("es"))), [data.panels, query]);
   const rest = sunday(selected) || selected < data.start_date;
   const available = rest ? 0 : Math.max(0, data.daily_capacity - panels.length);
-  const molds = new Set(panels.map((p) => p.molde));
+  const molds = new Map();
+  panels.forEach((p) => molds.set(p.molde, (molds.get(p.molde) || 0) + 1));
+  const moldFull = (name) => (molds.get(name) || 0) >= (data.molds.find((m) => m.name === name)?.copies || 1);
   const production = data.production_days.find((day) => day.date === selected);
   const add = async () => { if (choice && await onMove(choice, selected)) setChoice(""); };
   return <aside className="min-w-0 border-t border-[#E5E5EA] pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0" data-testid="schedule-day-detail">
@@ -34,9 +36,9 @@ export const DayDetails = ({ data, selected, onSelect, admin, busy, onMove }) =>
       <input className="schedule-input w-full" type="search" placeholder="Código, molde, planta o fachada" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar panel pendiente" data-testid="schedule-pending-search" />
       <select className="schedule-input w-full" value={choice} onChange={(e) => setChoice(e.target.value)} aria-label="Panel pendiente" data-testid="schedule-pending-select" disabled={busy || !available}>
         <option value="">{pending.length ? "Seleccionar panel" : "Sin paneles pendientes"}</option>
-        {pending.map((p) => <option key={p.object_name} value={p.object_name} disabled={molds.has(p.molde)}>{`${p.code} · ${p.molde} · ${p.floor_label} · ${p.facade_label}${molds.has(p.molde) ? " (molde ocupado)" : ""}`}</option>)}
+        {pending.map((p) => <option key={p.object_name} value={p.object_name} disabled={moldFull(p.molde)}>{`${p.code} · ${p.molde} · ${p.floor_label} · ${p.facade_label}${moldFull(p.molde) ? " (molde ocupado)" : ""}`}</option>)}
       </select>
-      <Button className="w-full" disabled={busy || !choice || !available || !pending.some((p) => p.object_name === choice && !molds.has(p.molde))} onClick={add} data-testid="schedule-add-button"><Plus /> Añadir a este día</Button>
+      <Button className="w-full" disabled={busy || !choice || !available || !pending.some((p) => p.object_name === choice && !moldFull(p.molde))} onClick={add} data-testid="schedule-add-button"><Plus /> Añadir a este día</Button>
     </section>}
   </aside>;
 };
