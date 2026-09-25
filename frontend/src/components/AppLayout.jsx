@@ -1,6 +1,7 @@
 import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { BarChart3, Box, CalendarRange, FileText, Layers, List } from "lucide-react";
+import BackupControls from "@/components/BackupControls";
 
 const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
@@ -32,6 +33,7 @@ export default function AppLayout() {
             {t.label}
           </NavLink>
         ))}
+        <BackupControls />
       </nav>
       <main className="min-h-0 min-w-0 flex-1">
         <Outlet />

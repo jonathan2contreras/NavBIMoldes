@@ -20,6 +20,7 @@ from scheduling.export import create_export_router
 from scheduling.installation_export import create_installation_export_router
 from scheduling.spatial import SpatialCatalog
 from scheduling.phases import PhaseStore, create_phase_router
+from backup import create_backup_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1090,6 +1091,15 @@ api_router.include_router(create_export_router(schedule_service))
 api_router.include_router(create_installation_export_router(phase_store))
 api_router.include_router(create_schedule_router(schedule_service))
 api_router.include_router(create_phase_router(phase_store, lambda: FACADE_NAMES))
+
+
+def apply_restored_settings(settings):
+    global FACADES, DIMS
+    FACADES = settings["facades"]
+    DIMS = settings["dims"]
+
+
+api_router.include_router(create_backup_router(db, STATIC_DIR, storage_get_object, put_object, apply_restored_settings))
 app.include_router(api_router)
 
 app.add_middleware(

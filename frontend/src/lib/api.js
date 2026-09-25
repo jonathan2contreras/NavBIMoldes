@@ -32,6 +32,32 @@ async function req(path, opts = {}) {
 export const fileUrl = (path) => `${BASE}/api/files/${path}`;
 
 export const api = {
+  downloadBackup: async () => {
+    const response = await fetch(`${BASE}/api/backup`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.detail || "No se pudo crear la copia de seguridad.");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bimtracker_copia_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  },
+  restoreBackup: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`${BASE}/api/backup`, { method: "POST", body: form });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.detail || "No se pudo restaurar la copia de seguridad.");
+    }
+    return response.json();
+  },
   getSchedule: () => req("/schedule"),
   generateSchedule: (body) => req("/schedule/generate", { method: "POST", body: JSON.stringify(body) }),
   saveSchedule: (revision) => req("/schedule/save", { method: "POST", body: JSON.stringify({ revision }) }),
