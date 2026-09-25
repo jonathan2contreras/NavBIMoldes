@@ -18,7 +18,10 @@ from datetime import datetime, timezone, timedelta
 from project_panels import ProjectPanelsService, ProjectPanelsResponse, ProjectPanelsUpdate
 from scheduling.service import ScheduleService
 from scheduling.routes import create_schedule_router
+from scheduling.export import create_export_router
+from scheduling.installation_export import create_installation_export_router
 from scheduling.spatial import SpatialCatalog
+from scheduling.phases import PhaseStore, create_phase_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1099,7 +1102,17 @@ async def export_molds_report(format: str = "xlsx", facade: str = "all", molde: 
 schedule_spatial = SpatialCatalog(lambda: GLB, node_world_matrix, read_accessor)
 
 
+def panel_area(name):
+    """Front-face m² from the 3D bounding box: Y is height, width is the larger horizontal side."""
+    dims = DIMS.get(name)
+    return round(dims[1] * max(dims[0], dims[2]), 2) if dims else 0.0
+
+
+phase_store = PhaseStore(db)
+
+
 async def schedule_source():
+    phases = await phase_store.by_panel()
     tags = await fetch_tags_map()
     molds = await fetch_molds_map()
     project = await project_panels.read(tags)
@@ -1116,14 +1129,18 @@ async def schedule_source():
                 awaiting_location += 1
                 continue
             panels[name] = {"object_name": name, "code": display_name(name),
-                            "molde": mold.name, "tipo": mold.tipo, "color": mold.color, **located[name]}
+                            "molde": mold.name, "tipo": mold.tipo, "color": mold.color,
+                            "area": panel_area(name), **phases.get(name, {}), **located[name]}
     return {"panels": panels, "total": project.total_panels,
             "floors": floors, "awaiting_location": awaiting_location, "eligible_count": eligible_count,
             "molds": [{"name": m.name, "tipo": m.tipo, "color": m.color} for m in molds.values()]}
 
 
 schedule_service = ScheduleService(db, schedule_source)
+api_router.include_router(create_export_router(schedule_service))
+api_router.include_router(create_installation_export_router(phase_store))
 api_router.include_router(create_schedule_router(schedule_service, require_admin))
+api_router.include_router(create_phase_router(phase_store, lambda: FACADE_NAMES, require_admin))
 app.include_router(api_router)
 
 app.add_middleware(

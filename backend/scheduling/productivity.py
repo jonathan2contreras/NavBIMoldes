@@ -2,7 +2,8 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 
 
-def production_summary(panels, entries, start, capacity):
+def production_summary(panels, entries, start, capacity, mold_copies=None):
+    mold_copies = mold_copies or {}
     remaining = Counter(panel["molde"] for panel in panels.values())
     by_day = defaultdict(list)
     for entry in entries:
@@ -14,7 +15,7 @@ def production_summary(panels, entries, start, capacity):
     while day <= last:
         key = day.isoformat()
         scheduled = len(by_day[key])
-        molds = sum(count > 0 for count in remaining.values())
+        molds = sum(min(count, mold_copies.get(mold, 1)) for mold, count in remaining.items())
         rest = day.weekday() == 6
         target = 0 if rest else capacity
         shortfall = max(0, target - scheduled)
@@ -28,7 +29,8 @@ def production_summary(panels, entries, start, capacity):
             status, explanation = "manual_gap", "Hay huecos por fechas fijadas o paneles sin programar. Recalcular puede completar esta jornada."
         else:
             status = "mold_limit"
-            explanation = f"Solo quedan {molds} moldes distintos con paneles pendientes. Máximo {molds} paneles hoy: uno por molde."
+            explanation = (f"Solo quedan {molds} moldes disponibles con paneles pendientes. Máximo {molds} paneles hoy según las copias por molde."
+                           if mold_copies else f"Solo quedan {molds} moldes distintos con paneles pendientes. Máximo {molds} paneles hoy: uno por molde.")
         days.append({"date": key, "scheduled": scheduled, "target": target,
                      "available_molds": molds, "remaining_panels": sum(remaining.values()),
                      "shortfall": shortfall, "status": status, "explanation": explanation})

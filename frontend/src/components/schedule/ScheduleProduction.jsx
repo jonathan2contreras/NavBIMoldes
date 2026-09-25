@@ -10,6 +10,6 @@ export const ScheduleProduction = ({ data, onSelect }) => {
       {firstLimited && <button type="button" className="flex items-center gap-2 text-left font-semibold text-[#945700] hover:underline" onClick={() => onSelect(firstLimited.date)} data-testid="schedule-limited-days"><CircleAlert size={15} className="shrink-0" />{data.limited_capacity_days} jornadas limitadas por moldes</button>}
       {data.manual_gap_days > 0 && <p className="text-[#636366]" data-testid="schedule-manual-gap-days">{data.manual_gap_days} jornadas con huecos en las fechas fijadas</p>}
     </div>
-    {data.bottleneck_mold && <p className="mt-3 text-xs text-[#636366]" data-testid="schedule-bottleneck">{data.bottleneck_mold}: {data.bottleneck_panels} paneles requieren al menos {data.bottleneck_panels} jornadas con un solo molde. No se duplican moldes para completar el objetivo.</p>}
+    {data.bottleneck_mold && <p className="mt-3 text-xs text-[#636366]" data-testid="schedule-bottleneck">{data.bottleneck_mold}: {data.bottleneck_panels} paneles requieren al menos {Math.ceil(data.bottleneck_panels / (data.molds.find((m) => m.name === data.bottleneck_mold)?.copies || 1))} jornadas con {data.molds.find((m) => m.name === data.bottleneck_mold)?.copies || 1} {data.molds.find((m) => m.name === data.bottleneck_mold)?.copies === 1 ? "molde" : "moldes"}.</p>}
   </section>;
 };

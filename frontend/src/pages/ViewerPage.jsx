@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Hand, Loader2, MousePointerClick, Plus, Tag, X } from "lucide-react";
+import { AlertCircle, CalendarRange, Eye, EyeOff, Hand, ListOrdered, MousePointerClick, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { BulkTagModal } from "../components/BulkTagModal";
+import { PhaseAssignModal } from "../components/phases/PhaseAssignModal";
+import { PhaseListPanel } from "../components/phases/PhaseListPanel";
+import { groupPhases, phaseLayerMap, weekColor, weekShort } from "../lib/phases";
 import { ViewerLoading } from "../components/ViewerLoading";
 import { useRole } from "../context/RoleContext";
 import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
-import { FACADE_LABELS, NO_MOLDE_COLOR, displayName } from "../lib/theme";
+import { NO_MOLDE_COLOR, displayName } from "../lib/theme";
 
-export default function ViewerPage() {
+export default function ViewerPage({ installationSelection, installationPlan, compact = false }) {
   const { isAdmin } = useRole();
   const iframeRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +30,14 @@ export default function ViewerPage() {
   const [multiMode, setMultiMode] = useState(false);
   const [multiNames, setMultiNames] = useState([]);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [facadeLoading, setFacadeLoading] = useState(null);
+  const [plan, setPlan] = useState({ fronts: [], items: [] });
+  const [phaseVisible, setPhaseVisible] = useState(true);
+  const [selectedPhase, setSelectedPhase] = useState(null);
+  const [highlightStatus, setHighlightStatus] = useState(null);
+  const highlightedPhase = installationSelection === undefined ? selectedPhase : installationSelection;
+  const [tagsVisible, setTagsVisible] = useState(true);
+  const [phaseOpen, setPhaseOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -90,6 +100,37 @@ export default function ViewerPage() {
   }, []);
 
   useEffect(() => {
+    if (installationPlan) setPlan(installationPlan);
+    else api.getPhases().then(setPlan).catch(() => {});
+  }, [installationPlan]);
+
+  useEffect(() => {
+    if (loading) return;
+    const names = highlightedPhase ? plan.items.filter((i) => i.front_id === highlightedPhase.front_id && i.week === highlightedPhase.week).map((i) => i.object_name) : [];
+    if (highlightedPhase) setIsoFilter("all");
+    sendCmd("highlightWeek", [names]);
+  }, [highlightedPhase, plan, loading, sendCmd]);
+
+  // The phase layer is resent whenever the list changes or the model finishes loading.
+  useEffect(() => {
+    if (!loading) sendCmd("applyPhases", [phaseLayerMap(plan)]);
+  }, [plan, loading, sendCmd]);
+
+  const togglePhaseLayer = () => {
+    setPhaseVisible((v) => {
+      sendCmd("setPhaseVisible", [!v]);
+      return !v;
+    });
+  };
+
+  const toggleTagsLayer = () => {
+    setTagsVisible((v) => {
+      sendCmd("setTagsVisible", [!v]);
+      return !v;
+    });
+  };
+
+  useEffect(() => {
     if (!focus) return;
     setHintVisible(false);
     setFocusedName(focus);
@@ -141,6 +182,8 @@ export default function ViewerPage() {
       } else if (msg.type === "select") {
         setHintVisible(false);
         openObject(msg.name);
+      } else if (msg.type === "weekHighlight" && e.source === iframeRef.current?.contentWindow) {
+        setHighlightStatus({ count: msg.count, visible: msg.visible, total: msg.total });
       } else if (msg.type === "multiselect") {
         setMultiNames(msg.names || []);
       }
@@ -190,21 +233,6 @@ export default function ViewerPage() {
     sendCmd("clearMultiSelection");
   };
 
-  const selectFacade = useCallback(
-    async (facade) => {
-      setFacadeLoading(facade);
-      try {
-        const r = await api.getObjectNames(facade, "all");
-        sendCmd("selectNames", [r.names || [], true]);
-      } catch {
-        // no-op
-      } finally {
-        setFacadeLoading(null);
-      }
-    },
-    [sendCmd]
-  );
-
   const handleBulkApplied = useCallback(() => {    loadTags();
     refreshCounts();
     setMultiNames([]);
@@ -230,7 +258,8 @@ export default function ViewerPage() {
         data-testid="model-viewer-iframe"
       />
 
-      <div className="pointer-events-none absolute left-4 right-4 top-3">
+      {compact && <div className="pointer-events-none absolute left-4 top-3 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold">Modelo 3D · Plan de instalación</div>}
+      {!compact && <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
           {!!report && (
             <div className="mb-2.5 flex flex-wrap items-center gap-3" data-testid="tagged-total-panel">
@@ -279,6 +308,48 @@ export default function ViewerPage() {
               );
             })}
           </div>
+          <div className="mt-2 flex items-center gap-2 overflow-x-auto border-t border-white/60 pt-2" data-testid="phase-layer-bar">
+            <button
+              data-testid="phase-layer-toggle"
+              onClick={togglePhaseLayer}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors"
+              style={phaseVisible ? { backgroundColor: "#1C1C1E", borderColor: "#1C1C1E", color: "#FFFFFF" } : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }}
+            >
+              {phaseVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+              Plan de instalación
+            </button>
+            <button
+              data-testid="tags-layer-toggle"
+              onClick={toggleTagsLayer}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-bold transition-colors"
+              style={tagsVisible ? { backgroundColor: "#1C1C1E", borderColor: "#1C1C1E", color: "#FFFFFF" } : { backgroundColor: "rgba(255,255,255,0.7)", borderColor: "#C7C7CC", color: "#3A3A3C" }}
+            >
+              {tagsVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+              Moldes
+            </button>
+            <button
+              data-testid="phase-list-toggle"
+              onClick={() => setListOpen((o) => !o)}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white"
+            >
+              <ListOrdered size={14} /> Lista de instalación ({plan.items.length})
+            </button>
+            {phaseVisible && groupPhases(plan).map((f) => (
+              <span key={f.id} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[#C7C7CC] bg-white/70 pl-2.5 pr-1 text-xs font-semibold text-[#3A3A3C]" data-testid={`phase-legend-${f.id}`}>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: f.color }} />
+                {f.name} ({f.weeks.reduce((n, w) => n + w.items.length, 0)})
+                {f.weeks.map((w) => (
+                  <button key={w.week} type="button"
+                    aria-pressed={selectedPhase?.front_id === f.id && selectedPhase?.week === w.week}
+                    onClick={() => setSelectedPhase((previous) => previous?.front_id === f.id && previous?.week === w.week ? null : { front_id: f.id, week: w.week })}
+                    className="flex h-6 items-center gap-1 rounded-full bg-[#F2F2F7] px-2 text-[11px] aria-pressed:bg-[#007AFF] aria-pressed:text-white" title={`Resaltar semana del ${weekShort(w.week)} · ${w.items.length} paneles`} data-testid={`phase-legend-week-${f.id}-${w.week}`}>
+                    <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: weekColor(f, w.index) }} />
+                    Sem. {weekShort(w.week)} ({w.items.length})
+                  </button>
+                ))}
+              </span>
+            ))}
+          </div>
           {isAdmin && (
             <div className="mt-2 flex items-center gap-2 border-t border-white/60 pt-2">
               <button
@@ -299,27 +370,17 @@ export default function ViewerPage() {
                   Toca varios paneles para seleccionarlos
                 </span>
               )}
-              {multiMode && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pl-1" data-testid="facade-select-group">
-                  <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-[#8E8E93]">Fachada</span>
-                  {Object.entries(FACADE_LABELS).map(([key, label]) => (
-                    <button
-                      key={key}
-                      data-testid={`facade-select-${key}`}
-                      onClick={() => selectFacade(key)}
-                      disabled={facadeLoading === key}
-                      className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-[#C7C7CC] bg-white/70 px-3 text-xs font-semibold text-[#3A3A3C] hover:bg-white disabled:opacity-60"
-                    >
-                      {facadeLoading === key ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
-      </div>
+      </div>}
+
+      {!loading && !error && highlightedPhase && <div className="absolute bottom-16 left-4 right-4 flex justify-center">
+        <div role="status" data-testid="week-highlight-status" data-count={highlightStatus?.count ?? 0} data-visible={highlightStatus?.visible ?? 0} data-total={highlightStatus?.total ?? 0} className="flex items-center gap-3 rounded-xl bg-white/95 px-4 py-3 text-sm shadow">
+          <span><strong className="text-[#007AFF]">{highlightStatus?.count ?? 0} paneles resaltados</strong> · Sem. {weekShort(highlightedPhase.week)} · Sin ocultar el modelo</span>
+          {!compact && <button className="rounded-lg border px-2 py-1" onClick={() => setSelectedPhase(null)}>Quitar resaltado</button>}
+        </div>
+      </div>}
 
       {!loading && !error && multiMode && multiNames.length > 0 && (
         <div className="absolute bottom-6 left-4 right-4 flex justify-center">
@@ -336,6 +397,13 @@ export default function ViewerPage() {
               className="flex h-[34px] items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3 text-xs font-bold text-white"
             >
               <Tag size={14} /> Etiquetar
+            </button>
+            <button
+              data-testid="multi-select-phase-button"
+              onClick={() => setPhaseOpen(true)}
+              className="flex h-[34px] items-center gap-1.5 rounded-full border border-[#1C1C1E] px-3 text-xs font-bold text-[#1C1C1E]"
+            >
+              <CalendarRange size={14} /> Asignar fase
             </button>
             <button onClick={clearMultiSelection} data-testid="multi-select-clear-button">
               <X size={20} className="text-[#8E8E93]" />
@@ -391,6 +459,18 @@ export default function ViewerPage() {
       )}
 
       {sheetObj && <TagSheet obj={sheetObj} onClose={closeSheet} onSaved={handleSaved} />}
+      {listOpen && (
+        <PhaseListPanel plan={plan} admin={isAdmin} onClose={() => setListOpen(false)} onChanged={setPlan} onFocus={(name) => sendCmd("focusObject", [name])} />
+      )}
+      {phaseOpen && (
+        <PhaseAssignModal
+          objectNames={multiNames}
+          plan={plan}
+          onClose={() => setPhaseOpen(false)}
+          onChanged={setPlan}
+          onAssigned={clearMultiSelection}
+        />
+      )}
       {bulkOpen && (
         <BulkTagModal objectNames={multiNames} onClose={() => setBulkOpen(false)} onApplied={handleBulkApplied} />
       )}

@@ -1,0 +1,10 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    { "name": "JWT_SECRET", "description": "Signing key for admin Bearer tokens", "requiredAtBoot": true, "generatedForDevelopment": true },
+    { "name": "ADMIN_PASSWORD_HASH", "description": "bcrypt hash of the shared admin password; admin login fails without it", "requiredAtBoot": false },
+    { "name": "EMERGENT_LLM_KEY", "description": "Emergent universal key for object storage (photo/PDF uploads)", "requiredAtBoot": false }
+  ]
+}

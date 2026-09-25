@@ -1,25 +1,23 @@
 import React, { useMemo, useState } from "react";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { ChevronLeft, ChevronRight, SkipBack, SkipForward } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Minus, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "../ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../ui/dialog";
 import { GanttCell } from "./GanttTask";
-import { dateLabel, panelKey, shiftDay, sunday } from "./dates";
+import { areaLabel, dateLabel, panelKey, shiftDay, sunday } from "./dates";
 
-export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, rangeStart, setRangeStart }) => {
+export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, onSetCopies, rangeStart, setRangeStart }) => {
   const [length, setLength] = useState(14);
   const [drag, setDrag] = useState(null);
   const [dragError, setDragError] = useState("");
+  const [pendingCopy, setPendingCopy] = useState(null);
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }));
   const days = useMemo(() => Array.from({ length }, (_, i) => shiftDay(rangeStart, i)), [rangeStart, length]);
-  const moldsInRouteOrder = useMemo(() => {
-    const first = new Map();
-    data.panels.forEach((panel) => { if (!first.has(panel.molde)) first.set(panel.molde, panel.sequence_index); });
-    return [...data.molds].sort((a, b) => ((first.get(a.name) ?? Infinity) - (first.get(b.name) ?? Infinity)) || a.name.localeCompare(b.name, "es", { numeric: true }));
-  }, [data.panels, data.molds]);
-  const { cells, counts } = useMemo(() => {
-    const cells = new Map(), counts = {};
-    data.panels.forEach((p) => { if (p.date) { cells.set(`${p.molde}|${p.date}`, p); counts[p.date] = (counts[p.date] || 0) + 1; } });
-    return { cells, counts };
+  const moldsByName = useMemo(() => [...data.molds].sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true })), [data.molds]);
+  const { cells, counts, areas } = useMemo(() => {
+    const cells = new Map(), counts = {}, areas = {};
+    data.panels.forEach((p) => { if (p.date) { const key = `${p.molde}|${p.date}`; if (!cells.has(key)) cells.set(key, []); cells.get(key).push(p); counts[p.date] = (counts[p.date] || 0) + 1; areas[p.date] = (areas[p.date] || 0) + (p.area || 0); } });
+    return { cells, counts, areas };
   }, [data.panels]);
   const endDrag = async ({ active, over }) => {
     setDrag(null);
@@ -48,16 +46,32 @@ export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, r
         <div className="gantt-grid" style={{ gridTemplateColumns: `var(--gantt-label) repeat(${length}, minmax(68px, 1fr))`, minWidth: `calc(var(--gantt-label) + ${length * 68}px)` }}>
           <div className="gantt-label gantt-corner"><span className="font-bold">Molde</span><span className="mt-1 block text-[10px] text-[#636366]">Programados / total</span></div>
           {days.map((day) => <button key={day} data-testid={`gantt-day-${day}`} onClick={() => onSelect(day)} className={`gantt-day ${sunday(day) ? "gantt-rest" : ""} ${selected === day ? "gantt-selected" : ""}`} aria-pressed={selected === day}><span className="block text-[10px] capitalize text-[#636366]">{dateLabel(day, "EEE")}</span><span className="block text-base font-bold">{dateLabel(day, "d")}</span><span className="block text-[9px] text-[#636366]">{dateLabel(day, "MMM")}</span></button>)}
-          {moldsInRouteOrder.map((mold) => <React.Fragment key={mold.name}>
-            <div className="gantt-label" data-testid={`gantt-mold-${panelKey(mold.name)}`}><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: mold.color }} /><span className="break-words text-xs font-bold">{mold.name}</span></div><p className="mt-1 text-[10px] text-[#636366]" data-testid={`gantt-mold-count-${panelKey(mold.name)}`}>{mold.scheduled} / {mold.total} · {mold.tipo || "Sin tipo"}</p></div>
-            {days.map((day) => <GanttCell key={day} mold={mold} day={day} panel={cells.get(`${mold.name}|${day}`)} selected={selected === day} admin={admin} busy={busy} start={data.start_date} onSelect={onSelect} />)}
-          </React.Fragment>)}
+          {moldsByName.flatMap((mold) => Array.from({ length: mold.copies || 1 }, (_, copy) => <React.Fragment key={`${mold.name}-${copy}`}>
+            <div className="gantt-label" data-testid={`gantt-mold-${panelKey(mold.name)}${copy ? `-${copy + 1}` : ""}`}>
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: mold.color }} /><span className="break-words text-xs font-bold">{mold.name}{copy ? ` · copia ${copy + 1}` : ""}</span></div>
+              {!copy ? <p className="mt-1 text-[10px] text-[#636366]" data-testid={`gantt-mold-count-${panelKey(mold.name)}`}>{mold.scheduled} / {mold.total} · {mold.tipo || "Sin tipo"}</p> : null}
+              {admin && !copy && <div className="mt-1 flex items-center gap-1">
+                <button type="button" className="rounded border px-1 text-[10px] disabled:opacity-40" aria-label={`Duplicar molde ${mold.name}`} data-testid={`gantt-duplicate-${panelKey(mold.name)}`} disabled={busy || mold.copies >= 100} onClick={() => setPendingCopy({ mold: mold.name, copies: (mold.copies || 1) + 1 })}><Plus size={12} className="inline" /> Duplicar ({mold.copies || 1})</button>
+                {(mold.copies || 1) > 1 && <button type="button" className="rounded border p-0.5 disabled:opacity-40" aria-label={`Quitar copia de ${mold.name}`} disabled={busy} onClick={() => setPendingCopy({ mold: mold.name, copies: mold.copies - 1 })}><Minus size={12} /></button>}
+              </div>}
+            </div>
+            {days.map((day) => <GanttCell key={day} mold={mold} day={day} copy={copy} panel={cells.get(`${mold.name}|${day}`)?.[copy]} selected={selected === day} admin={admin} busy={busy} start={data.start_date} onSelect={onSelect} />)}
+          </React.Fragment>))}
           <div className="gantt-label border-t-2 text-xs font-bold">Paneles / día</div>
           {days.map((day) => <button key={day} data-testid={`gantt-day-count-${day}`} className={`gantt-total ${sunday(day) ? "gantt-rest" : ""}`} onClick={() => onSelect(day)}>{counts[day] || 0}<span className="font-normal text-[#8E8E93]"> / {sunday(day) ? 0 : data.daily_capacity}</span></button>)}
+          <div className="gantt-label text-xs font-bold">m² / día</div>
+          {days.map((day) => <div key={day} data-testid={`gantt-day-area-${day}`} className={`gantt-total flex items-center justify-center text-[#007AFF] ${sunday(day) ? "gantt-rest" : ""}`}>{areas[day] ? areaLabel(areas[day]) : "—"}</div>)}
         </div>
       </div>
       <DragOverlay dropAnimation={null}>{drag && <div className="rounded border-2 bg-white px-3 py-2 text-xs font-bold shadow-lg" style={{ borderColor: drag.color }} data-testid="gantt-drag-preview">{drag.code}</div>}</DragOverlay>
     </DndContext>
     {!data.molds.length && <p className="py-8 text-sm text-[#636366]" data-testid="gantt-empty-catalog">No hay moldes en el catálogo.</p>}
+    <Dialog open={!!pendingCopy} onOpenChange={(open) => { if (!open && !busy) setPendingCopy(null); }}>
+      <DialogContent className="w-[calc(100%_-_2rem)] max-w-md rounded-lg" data-testid="gantt-copy-dialog">
+        <DialogTitle>¿Recalcular con {pendingCopy?.copies} copias de {pendingCopy?.mold}?</DialogTitle>
+        <DialogDescription>Se reemplazarán las fechas guardadas, incluidos los cambios manuales. Cada copia podrá fabricar un panel por día, sin superar el objetivo diario.</DialogDescription>
+        <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={busy} onClick={() => setPendingCopy(null)}>Cancelar</Button><Button type="button" disabled={busy} data-testid="gantt-copy-confirm" onClick={async () => { if (pendingCopy && await onSetCopies(pendingCopy.mold, pendingCopy.copies)) setPendingCopy(null); }}>Confirmar y recalcular</Button></div>
+      </DialogContent>
+    </Dialog>
   </section>;
 };

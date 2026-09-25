@@ -20,6 +20,11 @@ class GenerateRequest(RevisionRequest):
         return value
 
 
+class MoldCopyRequest(RevisionRequest):
+    mold: str = Field(min_length=1)
+    copies: int = Field(strict=True, ge=1, le=100)
+
+
 class MoveRequest(RevisionRequest):
     object_name: str = Field(min_length=1)
     date: Optional[CalendarDate]
@@ -40,6 +45,11 @@ class SchedulePanel(BaseModel):
     stage_index: int
     sequence_index: int
     center: list[float]
+    area: float = 0.0
+    phase_order: Optional[int] = None
+    week: Optional[str] = None
+    front: Optional[str] = None
+    front_color: Optional[str] = None
 
 
 class ScheduleFloor(BaseModel):
@@ -67,6 +77,7 @@ class ScheduleMold(BaseModel):
     color: str
     total: int
     scheduled: int
+    copies: int = 1
 
 
 class ProductionDay(BaseModel):
@@ -109,4 +120,7 @@ class ScheduleResponse(BaseModel):
     limited_capacity_days: int
     manual_gap_days: int
     bottleneck_mold: Optional[str] = None
+    phase_active: bool = False
+    phase_unfit: int = 0
+    phase_late: int = 0
     bottleneck_panels: int

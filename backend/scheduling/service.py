@@ -2,7 +2,7 @@ from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from fastapi import HTTPException
 from pymongo.errors import DuplicateKeyError
-from .engine import plan, move
+from .engine import plan, move, phase_active, installation_late
 from .models import ScheduleResponse
 from .resources import CAPACITY_STRATEGY, validate_resources
 from .productivity import production_summary
@@ -40,7 +40,7 @@ class ScheduleService:
         strategy = record.get("strategy", "legacy_capacity")
         conflict = None
         try:
-            validate_resources(source["panels"], entries, record["start_date"], record["daily_capacity"])
+            validate_resources(source["panels"], entries, record["start_date"], record["daily_capacity"], record.get("mold_copies"))
         except HTTPException as error:
             conflict = str(error.detail)
         legacy = record["revision"] > 0 and strategy != CAPACITY_STRATEGY
@@ -50,7 +50,8 @@ class ScheduleService:
             revision=record["revision"], saved=record["revision"] > 0,
             updated_at=record.get("updated_at"),
             panels=[{**p, "date": dates.get(p["object_name"])} for p in sorted(source["panels"].values(), key=lambda p: p["sequence_index"])],
-            molds=[{**m, "total": totals[m["name"]], "scheduled": scheduled[m["name"]]}
+            molds=[{**m, "total": totals[m["name"]], "scheduled": scheduled[m["name"]],
+                    "copies": record.get("mold_copies", {}).get(m["name"], 1)}
                    for m in sorted(source["molds"], key=lambda m: m["name"])],
             total_project=source["total"], schedulable=len(source["panels"]), scheduled=len(entries),
             unscheduled=len(source["panels"]) - len(entries),
@@ -60,7 +61,10 @@ class ScheduleService:
             strategy=strategy, needs_replan=legacy or bool(conflict), order_warning=warning,
             floors=source["floors"], stages=stage_summaries(source["panels"], entries),
             awaiting_location=source["awaiting_location"],
-            **production_summary(source["panels"], entries, record["start_date"], record["daily_capacity"]),
+            phase_active=phase_active(source["panels"]),
+            phase_unfit=sum(1 for p in source["panels"].values() if p.get("phase_order") is not None and p["object_name"] not in dates),
+            phase_late=sum(1 for name, day in dates.items() if installation_late(source["panels"][name], day)),
+            **production_summary(source["panels"], entries, record["start_date"], record["daily_capacity"], record.get("mold_copies")),
         )
 
     def ensure_located(self, source):
@@ -71,7 +75,7 @@ class ScheduleService:
         self.ensure_located(source)
         if record.get("strategy") != CAPACITY_STRATEGY:
             raise HTTPException(409, "Primero aplica la prioridad de cantidad diaria con confirmación. Las fechas guardadas no se han cambiado.")
-        validate_resources(source["panels"], entries, record["start_date"], record["daily_capacity"])
+        validate_resources(source["panels"], entries, record["start_date"], record["daily_capacity"], record.get("mold_copies"))
 
     async def get(self):
         return self.response(*(await self.snapshot()))
@@ -80,9 +84,9 @@ class ScheduleService:
         if record["revision"] != expected:
             raise HTTPException(409, "El cronograma cambió en otra sesión. Actualiza antes de guardar.")
         self.ensure_located(source)
-        validate_resources(source["panels"], entries, record["start_date"], record["daily_capacity"])
+        validate_resources(source["panels"], entries, record["start_date"], record["daily_capacity"], record.get("mold_copies"))
         body = {"start_date": record["start_date"], "daily_capacity": record["daily_capacity"], "strategy": CAPACITY_STRATEGY,
-                "revision": expected + 1, "entries": entries,
+                "mold_copies": record.get("mold_copies", {}), "revision": expected + 1, "entries": entries,
                 "updated_at": datetime.now(timezone.utc).isoformat()}
         if expected == 0:
             try:
@@ -99,14 +103,28 @@ class ScheduleService:
         source, record, _ = await self.snapshot()
         self.ensure_located(source)
         record = {**record, "start_date": payload.start_date.isoformat(), "daily_capacity": payload.daily_capacity}
-        entries = plan(source["panels"], record["start_date"], record["daily_capacity"])
+        entries = plan(source["panels"], record["start_date"], record["daily_capacity"], mold_copies=record.get("mold_copies"))
+        return await self.write(source, record, entries, payload.revision)
+
+    async def set_mold_copies(self, payload):
+        source, record, _ = await self.snapshot()
+        self.ensure_located(source)
+        if payload.mold not in {m["name"] for m in source["molds"]}:
+            raise HTTPException(422, "El molde no existe en el catálogo.")
+        copies = {**record.get("mold_copies", {})}
+        if payload.copies == 1:
+            copies.pop(payload.mold, None)
+        else:
+            copies[payload.mold] = payload.copies
+        record = {**record, "mold_copies": copies}
+        entries = plan(source["panels"], record["start_date"], record["daily_capacity"], mold_copies=copies)
         return await self.write(source, record, entries, payload.revision)
 
     async def save(self, payload, fill=False):
         source, record, entries = await self.snapshot()
         self.ensure_current(source, record, entries)
         if fill:
-            entries = plan(source["panels"], record["start_date"], record["daily_capacity"], entries)
+            entries = plan(source["panels"], record["start_date"], record["daily_capacity"], entries, record.get("mold_copies"))
         return await self.write(source, record, entries, payload.revision)
 
     async def move_panel(self, payload):
@@ -115,5 +133,5 @@ class ScheduleService:
         panel = source["panels"].get(payload.object_name)
         if not panel:
             raise HTTPException(422, "Esta pieza no tiene un molde válido asignado. Actualiza el cronograma.")
-        candidate = move(entries, panel, payload.date, record["start_date"], record["daily_capacity"])
+        candidate = move(entries, panel, payload.date, record["start_date"], record["daily_capacity"], record.get("mold_copies"))
         return await self.write(source, record, candidate, payload.revision)

@@ -55,7 +55,7 @@ function send(msg) {
 }
 
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0xEDEEF2);
@@ -129,6 +129,16 @@ function edgesFor(geom) {
 const meshesByName = {};
 const meshList = [];
 let tags = {};
+// Fabrication phase layer: {name: {color, label}} drawn over the mold color without touching the mold tag.
+let phases = {};
+let phaseVisible = true;
+let tagsVisible = true;
+let weekHighlighted = new Set();
+function shownTag(name) {
+  if (weekHighlighted.has(name)) return { color: '#007AFF' };
+  const ph = phaseVisible && phases[name];
+  return ph ? { color: ph.color } : (tagsVisible && tags[name]) || null;
+}
 let selectedName = null;
 let multiMode = false;
 const multiSelected = new Set();
@@ -137,7 +147,9 @@ let pendingTags = null;
 let pendingFocus = null;
 let isolation = 'all';
 let sceneMaxDim = 1;
+let modelCenter = new THREE.Vector3();
 let loaded = false;
+const exportDecorations = [];
 
 function isVisibleFor(name) {
   const molde = (tags[name] && tags[name].molde) || null;
@@ -145,13 +157,13 @@ function isVisibleFor(name) {
 }
 
 function isHighlighted(name) {
-  return name === selectedName || multiSelected.has(name);
+  return name === selectedName || multiSelected.has(name) || weekHighlighted.has(name);
 }
 
 function refreshMesh(name) {
   const m = meshesByName[name];
   if (!m) return;
-  m.material = matFor(tags[name] || null, isHighlighted(name), name === hoveredName);
+  m.material = matFor(shownTag(name), isHighlighted(name), name === hoveredName);
   m.visible = isVisibleFor(name);
   renderer.shadowMap.needsUpdate = true;
   requestRender();
@@ -160,7 +172,7 @@ function refreshMesh(name) {
 function applyAll() {
   for (const mesh of meshList) {
     const key = mesh.userData.orig || mesh.name;
-    mesh.material = matFor(tags[key] || null, isHighlighted(key), key === hoveredName);
+    mesh.material = matFor(shownTag(key), isHighlighted(key), key === hoveredName);
     mesh.visible = isVisibleFor(key);
   }
   renderer.shadowMap.needsUpdate = true;
@@ -212,6 +224,25 @@ window.viewerAPI = {
     if (tagData) tags[name] = tagData; else delete tags[name];
     refreshMesh(name);
   },
+  applyPhases(map) {
+    phases = map || {};
+    if (loaded) applyAll();
+  },
+  highlightWeek(names) {
+    weekHighlighted = new Set((names || []).filter((name) => meshesByName[name]));
+    if (weekHighlighted.size) isolation = 'all';
+    if (loaded) applyAll();
+    send({ type: 'weekHighlight', count: weekHighlighted.size,
+      visible: meshList.filter((mesh) => mesh.visible).length, total: meshList.length });
+  },
+  setPhaseVisible(on) {
+    phaseVisible = !!on;
+    if (loaded) applyAll();
+  },
+  setTagsVisible(on) {
+    tagsVisible = !!on;
+    if (loaded) applyAll();
+  },
   clearSelection() {
     const prev = selectedName;
     selectedName = null;
@@ -245,6 +276,53 @@ window.viewerAPI = {
     selectedName = null;
     if (loaded) applyAll();
     send({ type: 'multiselect', names: Array.from(multiSelected) });
+  },
+  captureFacades(id) {
+    if (!loaded) { send({ type: 'facadeCaptures', id, error: 'El modelo 3D aún no ha cargado.' }); return; }
+    const oldPosition = camera.position.clone();
+    const oldTarget = controls.target.clone();
+    const oldAspect = camera.aspect;
+    const visibility = meshList.map((mesh) => mesh.visible);
+    const decorationVisibility = exportDecorations.map((mesh) => mesh.visible);
+    const clearColor = renderer.getClearColor(new THREE.Color()).clone();
+    const clearAlpha = renderer.getClearAlpha();
+    try {
+      const width = 640, height = 480;
+      renderer.setSize(width, height, false);
+      renderer.setClearColor(0x000000, 0);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      meshList.forEach((mesh) => { mesh.visible = true; });
+      exportDecorations.forEach((mesh) => { mesh.visible = false; });
+      const directions = {
+        norte: [-0.6, 0.7, -1], sur: [0.6, 0.7, 1],
+        este: [1, 0.7, -0.6], oeste: [-1, 0.7, 0.6],
+      };
+      const images = {};
+      for (const [name, xyz] of Object.entries(directions)) {
+        camera.position.copy(modelCenter).add(new THREE.Vector3(...xyz).normalize().multiplyScalar(sceneMaxDim * 1.85));
+        controls.target.copy(modelCenter);
+        camera.lookAt(modelCenter);
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(scene, camera);
+        images[name] = canvas.toDataURL('image/png');
+      }
+      send({ type: 'facadeCaptures', id, images });
+    } catch (error) {
+      send({ type: 'facadeCaptures', id, error: 'No se pudieron capturar las fachadas del modelo.' });
+    } finally {
+      meshList.forEach((mesh, index) => { mesh.visible = visibility[index]; });
+      exportDecorations.forEach((mesh, index) => { mesh.visible = decorationVisibility[index]; });
+      renderer.setClearColor(clearColor, clearAlpha);
+      camera.position.copy(oldPosition);
+      controls.target.copy(oldTarget);
+      camera.aspect = oldAspect;
+      camera.updateProjectionMatrix();
+      controls.update();
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      renderer.shadowMap.needsUpdate = true;
+      requestRender();
+    }
   },
 };
 
@@ -298,6 +376,7 @@ function addCompassLabels(box, size, center, maxDim) {
     m.rotation.x = -Math.PI / 2;
     m.position.set(center.x + dx, groundY, center.z + dz);
     scene.add(m);
+    exportDecorations.push(m);
   }
 }
 
@@ -340,6 +419,7 @@ loader.load('/api/model',
     const center = box.getCenter(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     sceneMaxDim = maxDim;
+    modelCenter.copy(center);
     camera.near = Math.max(maxDim / 1000, 0.01);
     camera.far = maxDim * 20;
     camera.updateProjectionMatrix();
@@ -374,6 +454,7 @@ loader.load('/api/model',
     ground.receiveShadow = true;
     ground.raycast = () => {};
     scene.add(ground);
+    exportDecorations.push(ground);
     renderer.shadowMap.needsUpdate = true;
     loaded = true;
     if (pendingTags) { tags = pendingTags; pendingTags = null; }
@@ -487,7 +568,9 @@ function setHover(name) {
   if (prev) refreshMesh(prev);
   if (name) refreshMesh(name);
   if (name) {
-    hovercode.textContent = displayName(name);
+    const molde = tags[name] && tags[name].molde;
+    const phase = phaseVisible && phases[name] && phases[name].label;
+    hovercode.textContent = [displayName(name), molde, phase].filter(Boolean).join(' · ');
     hoverbar.classList.add('on');
   } else {
     hoverbar.classList.remove('on');
