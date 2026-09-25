@@ -3,26 +3,11 @@ const BASE = process.env.REACT_APP_BACKEND_URL;
 export const BACKEND_URL = BASE;
 export const VIEWER_URL = `${BASE}/api/viewer`;
 
-const authHeaders = () => {
-  const token = localStorage.getItem("bim_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-const handleUnauthorized = () => {
-  localStorage.removeItem("bim_role");
-  localStorage.removeItem("bim_token");
-  if (window.location.pathname !== "/login") window.location.assign("/login");
-};
-
 async function req(path, opts = {}) {
   const r = await fetch(`${BASE}/api${path}`, {
     ...opts,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
+    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
   });
-  if (r.status === 401) {
-    handleUnauthorized();
-    throw new Error("HTTP 401");
-  }
   if (!r.ok) {
     const body = await r.json().catch(() => null);
     let message = typeof body?.detail === "string" ? body.detail : `Error de solicitud (${r.status}).`;
@@ -64,22 +49,14 @@ export const api = {
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd, headers: authHeaders() });
-    if (r.status === 401) {
-      handleUnauthorized();
-      throw new Error("HTTP 401");
-    }
+    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
   uploadPdf: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd, headers: authHeaders() });
-    if (r.status === 401) {
-      handleUnauthorized();
-      throw new Error("HTTP 401");
-    }
+    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
@@ -109,6 +86,4 @@ export const api = {
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   deletePhoto: (objectName, photo) =>
     req(`/photos?object_name=${encodeURIComponent(objectName)}&photo=${encodeURIComponent(photo)}`, { method: "DELETE" }),
-  verifyAdmin: (password) =>
-    req("/admin/verify", { method: "POST", body: JSON.stringify({ password }) }),
 };

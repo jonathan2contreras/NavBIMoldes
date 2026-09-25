@@ -1,7 +1,7 @@
 """Fabrication phases: panels grouped by front and calendar week, kept in selection order."""
 import uuid
 from datetime import date as CalendarDate, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 FRONT_COLORS = ["#E4572E", "#17BEBB", "#FFC914", "#76B041", "#8E44AD", "#2E86DE", "#D35400", "#C2185B"]
@@ -57,7 +57,7 @@ class PhaseStore:
                 for i, item in enumerate(plan["items"]) if item["front_id"] in fronts}
 
 
-def create_phase_router(store, valid_names, require_admin):
+def create_phase_router(store, valid_names):
     router = APIRouter(prefix="/phases", tags=["Fases"])
 
     @router.get("")
@@ -65,7 +65,7 @@ def create_phase_router(store, valid_names, require_admin):
         return await store.read()
 
     @router.patch("/week")
-    async def move_week(payload: MoveWeekRequest, _admin=Depends(require_admin)):
+    async def move_week(payload: MoveWeekRequest):
         week = monday(payload.week).isoformat()
         new_week = monday(payload.new_week).isoformat()
         plan = await store.read()
@@ -90,7 +90,7 @@ def create_phase_router(store, valid_names, require_admin):
         return await store.read()
 
     @router.post("/fronts")
-    async def create_front(payload: FrontRequest, _admin=Depends(require_admin)):
+    async def create_front(payload: FrontRequest):
         plan = await store.read()
         name = payload.name.strip()
         if any(f["name"].lower() == name.lower() for f in plan["fronts"]):
@@ -100,14 +100,14 @@ def create_phase_router(store, valid_names, require_admin):
         return await store.write(plan)
 
     @router.delete("/fronts/{front_id}")
-    async def delete_front(front_id: str, _admin=Depends(require_admin)):
+    async def delete_front(front_id: str):
         plan = await store.read()
         plan["fronts"] = [f for f in plan["fronts"] if f["id"] != front_id]
         plan["items"] = [i for i in plan["items"] if i["front_id"] != front_id]
         return await store.write(plan)
 
     @router.post("/assign")
-    async def assign(payload: AssignRequest, _admin=Depends(require_admin)):
+    async def assign(payload: AssignRequest):
         plan = await store.read()
         if not any(f["id"] == payload.front_id for f in plan["fronts"]):
             raise HTTPException(404, "Frente no encontrado.")
@@ -121,7 +121,7 @@ def create_phase_router(store, valid_names, require_admin):
         return await store.write(plan)
 
     @router.post("/unassign")
-    async def unassign(payload: UnassignRequest, _admin=Depends(require_admin)):
+    async def unassign(payload: UnassignRequest):
         plan = await store.read()
         drop = set(payload.object_names)
         plan["items"] = [i for i in plan["items"] if i["object_name"] not in drop]
