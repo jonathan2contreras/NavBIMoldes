@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { GanttChart } from "lucide-react";
 import { BACKEND_URL } from "../../lib/api";
 import { Button } from "../ui/button";
+import { captureFacades } from "./captureFacades";
 
 export default function InstallationExport({ disabled }) {
   const [pending, setPending] = useState(false);
@@ -11,7 +12,10 @@ export default function InstallationExport({ disabled }) {
   const download = async () => {
     setPending(true); setError(""); setDone(false);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/phases/export-gantt.pdf`);
+      const images = await captureFacades();
+      const response = await fetch(`${BACKEND_URL}/api/phases/export-gantt.pdf`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ images }),
+      });
       if (!response.ok) throw new Error("No se pudo exportar el Gantt. Inténtalo de nuevo.");
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");

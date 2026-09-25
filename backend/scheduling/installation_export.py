@@ -1,16 +1,19 @@
 """Installation-only Gantt export, read directly from the saved phase plan."""
+import base64
+import binascii
 from collections import Counter
 from datetime import date, timedelta
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 WEEKS_PER_BLOCK = 8
 WEEK_WIDTH = 2.6 * cm
@@ -75,10 +78,42 @@ def installation_gantt_story(plan):
     return story
 
 
-def to_installation_gantt_pdf(plan):
+FACADES = (("norte", "Norte"), ("sur", "Sur"), ("este", "Este"), ("oeste", "Oeste"))
+
+
+class FacadeCaptures(BaseModel):
+    images: dict[str, str]
+
+
+def facade_thumbnails(images):
+    if set(images) != {key for key, _ in FACADES}:
+        raise HTTPException(422, "Se requieren las cuatro fachadas del modelo.")
+    styles = getSampleStyleSheet()
+    cells = []
+    for key, label in FACADES:
+        value = images[key]
+        if not value.startswith("data:image/jpeg;base64,") or len(value) > 3_000_000:
+            raise HTTPException(422, f"Imagen inválida: {label}.")
+        try:
+            raw = base64.b64decode(value.split(",", 1)[1], validate=True)
+            if not raw.startswith(b"\xff\xd8\xff"):
+                raise ValueError("Not JPEG")
+            image = Image(BytesIO(raw), width=5.5 * cm, height=4.125 * cm)
+        except (ValueError, binascii.Error, OSError) as exc:
+            raise HTTPException(422, f"Imagen inválida: {label}.") from exc
+        cells.append([Paragraph(f"Fachada {label} · vista isométrica", styles["BodyText"]), image])
+    thumbnails = Table([cells], colWidths=[6 * cm] * 4)
+    thumbnails.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F2F2F7"))]))
+    return [Spacer(1, 18), Paragraph("Modelo completo · cuatro fachadas", styles["Heading2"]), thumbnails]
+
+
+def to_installation_gantt_pdf(plan, images=None):
     story = installation_gantt_story(plan)
+    if images is not None:
+        story.extend(facade_thumbnails(images))
     tables = [part for part in story if isinstance(part, Table)]
-    table_width = sum(tables[0]._colWidths) if tables else 0
+    table_width = max((sum(table._colWidths) for table in tables), default=0)
     page_width = max(landscape(A4)[0], table_width + 2 * cm + 12)
     available_width = page_width - 2 * cm - 12  # ReportLab frames have 6pt padding on each side.
     content_height = sum(part.wrap(available_width, 100000)[1] + part.getSpaceBefore() + part.getSpaceAfter()
@@ -101,11 +136,18 @@ def to_installation_gantt_pdf(plan):
 def create_installation_export_router(store):
     router = APIRouter(prefix="/phases", tags=["Instalación"])
 
-    @router.get("/export-gantt.pdf")
-    async def export_installation_gantt():
+    async def pdf_response(images=None):
         plan = await store.read()
-        return Response(to_installation_gantt_pdf(plan), media_type="application/pdf",
+        return Response(to_installation_gantt_pdf(plan, images), media_type="application/pdf",
                         headers={"Content-Disposition": f'attachment; filename="gantt_instalacion_{date.today().isoformat()}.pdf"',
                                  "Cache-Control": "no-store"})
+
+    @router.get("/export-gantt.pdf")
+    async def export_installation_gantt():
+        return await pdf_response()
+
+    @router.post("/export-gantt.pdf")
+    async def export_installation_gantt_with_model(captures: FacadeCaptures):
+        return await pdf_response(captures.images)
 
     return router

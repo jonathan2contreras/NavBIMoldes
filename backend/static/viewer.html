@@ -147,6 +147,7 @@ let pendingTags = null;
 let pendingFocus = null;
 let isolation = 'all';
 let sceneMaxDim = 1;
+let modelCenter = new THREE.Vector3();
 let loaded = false;
 
 function isVisibleFor(name) {
@@ -275,6 +276,46 @@ window.viewerAPI = {
     if (loaded) applyAll();
     send({ type: 'multiselect', names: Array.from(multiSelected) });
   },
+  captureFacades(id) {
+    if (!loaded) { send({ type: 'facadeCaptures', id, error: 'El modelo 3D aún no ha cargado.' }); return; }
+    const oldPosition = camera.position.clone();
+    const oldTarget = controls.target.clone();
+    const oldAspect = camera.aspect;
+    const visibility = meshList.map((mesh) => mesh.visible);
+    try {
+      const width = 480, height = 360;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      meshList.forEach((mesh) => { mesh.visible = true; });
+      const directions = {
+        norte: [-0.6, 0.7, -1], sur: [0.6, 0.7, 1],
+        este: [1, 0.7, -0.6], oeste: [-1, 0.7, 0.6],
+      };
+      const images = {};
+      for (const [name, xyz] of Object.entries(directions)) {
+        camera.position.copy(modelCenter).add(new THREE.Vector3(...xyz).normalize().multiplyScalar(sceneMaxDim * 2.7));
+        controls.target.copy(modelCenter);
+        camera.lookAt(modelCenter);
+        renderer.shadowMap.needsUpdate = true;
+        renderer.render(scene, camera);
+        images[name] = canvas.toDataURL('image/jpeg', 0.85);
+      }
+      send({ type: 'facadeCaptures', id, images });
+    } catch (error) {
+      send({ type: 'facadeCaptures', id, error: 'No se pudieron capturar las fachadas del modelo.' });
+    } finally {
+      meshList.forEach((mesh, index) => { mesh.visible = visibility[index]; });
+      camera.position.copy(oldPosition);
+      controls.target.copy(oldTarget);
+      camera.aspect = oldAspect;
+      camera.updateProjectionMatrix();
+      controls.update();
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      renderer.shadowMap.needsUpdate = true;
+      requestRender();
+    }
+  },
 };
 
 // Command channel: works cross-origin (parent postMessage) and from RN WebView (injectJavaScript)
@@ -369,6 +410,7 @@ loader.load('/api/model',
     const center = box.getCenter(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     sceneMaxDim = maxDim;
+    modelCenter.copy(center);
     camera.near = Math.max(maxDim / 1000, 0.01);
     camera.far = maxDim * 20;
     camera.updateProjectionMatrix();

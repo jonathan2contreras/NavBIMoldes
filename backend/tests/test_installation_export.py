@@ -1,6 +1,10 @@
 """Installation export never depends on fabrication eligibility or saved schedules."""
+import base64
 from copy import deepcopy
+from io import BytesIO
 import re
+
+from PIL import Image
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -57,6 +61,32 @@ def test_many_fronts_still_fit_one_page():
     data["fronts"] = [{"id": str(i), "name": f"Frente {i}", "color": "#17BEBB"} for i in range(50)]
     data["items"] = [{"front_id": str(i), "week": "2027-02-15"} for i in range(50)]
     assert len(re.findall(rb"/Type\s*/Page\b", to_installation_gantt_pdf(data))) == 1
+
+
+def test_four_model_views_below_gantt_on_one_page():
+    images = {}
+    for index, key in enumerate(("norte", "sur", "este", "oeste")):
+        picture = BytesIO()
+        Image.new("RGB", (480, 360), (140 + index * 20, 180, 210)).save(picture, format="JPEG")
+        images[key] = "data:image/jpeg;base64," + base64.b64encode(picture.getvalue()).decode()
+    data = plan()
+    story = installation_gantt_story(data)
+    assert len([item for item in story if isinstance(item, Table)]) == 1
+    pdf = to_installation_gantt_pdf(data, images)
+    assert len(re.findall(rb"/Type\s*/Page\b", pdf)) == 1
+    assert len(re.findall(rb"/Subtype\s*/Image\b", pdf)) == 4
+
+    class Store:
+        async def read(self):
+            return data
+
+    app = FastAPI()
+    app.include_router(create_installation_export_router(Store()))
+    with TestClient(app) as client:
+        response = client.post("/phases/export-gantt.pdf", json={"images": images})
+        assert response.status_code == 200
+        assert len(re.findall(rb"/Type\s*/Page\b", response.content)) == 1
+        assert client.post("/phases/export-gantt.pdf", json={"images": {}}).status_code == 422
 
 
 def test_endpoint_uses_current_installation_plan():
