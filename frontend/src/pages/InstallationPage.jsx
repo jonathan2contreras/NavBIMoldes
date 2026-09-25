@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
 import { weekMonday } from "../lib/phases";
 import InstallationGantt from "../components/phases/InstallationGantt";
+import InstallationExport from "../components/phases/InstallationExport";
 import ViewerPage from "./ViewerPage";
 
 export default function InstallationPage() {
@@ -32,7 +33,10 @@ export default function InstallationPage() {
   return (
     <div className="h-full overflow-y-auto bg-[#F2F2F7]" data-testid="installation-page">
       <section className="space-y-3 p-4 sm:p-6">
-        <h1 className="text-xl font-bold">Cronograma de instalación</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-bold">Cronograma de instalación</h1>
+          <InstallationExport disabled={!plan || busy} />
+        </div>
         <p className="text-sm text-[#636366]">Selecciona una semana para resaltar sus paneles en el modelo, sin ocultar los demás. Este plan es independiente del cronograma de fabricación.</p>
         {error && <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button className="underline" onClick={load} disabled={busy}>Actualizar plan</button></div>}
         {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
