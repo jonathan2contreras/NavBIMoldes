@@ -1056,10 +1056,39 @@ async def export_molds_report(format: str = "xlsx", facade: str = "all", molde: 
 schedule_spatial = SpatialCatalog(lambda: GLB, node_world_matrix, read_accessor)
 
 
+AREA_CACHE: dict = {}
+
+
+def mesh_surface_area(name: str) -> float:
+    """Total surface of a panel's mesh patches (skin, ribs and cantos), in m²."""
+    idx = GLB['by_name'].get(name)
+    if idx is None:
+        return 0.0
+    M = node_world_matrix(idx)
+    total = 0.0
+    for prim in GLB['js']['meshes'][GLB['js']['nodes'][idx]['mesh']]['primitives']:
+        if prim.get('mode', 4) != 4 or 'POSITION' not in prim['attributes']:
+            continue
+        pos = read_accessor(prim['attributes']['POSITION']).astype(np.float64) @ M[:3, :3].T + M[:3, 3]
+        if prim.get('indices') is not None:
+            ind = read_accessor(prim['indices']).reshape(-1).astype(np.int64)
+        else:
+            ind = np.arange(len(pos), dtype=np.int64)
+        tris = pos[ind].reshape(-1, 3, 3)
+        total += float(np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1).sum() / 2)
+    return total
+
+
 def panel_area(name):
-    """Front-face m² from the 3D bounding box: Y is height, width is the larger horizontal side."""
-    dims = DIMS.get(name)
-    return round(dims[1] * max(dims[0], dims[2]), 2) if dims else 0.0
+    """Panel m² = half the total mesh surface. Approximation pending exact validation against
+    Revit's solid surface area (~7% high); falls back to the bounding-box front face."""
+    if name not in AREA_CACHE:
+        area = round(mesh_surface_area(name) / 2, 2) if GLB else 0.0
+        if not area:
+            dims = DIMS.get(name)
+            area = round(dims[1] * max(dims[0], dims[2]), 2) if dims else 0.0
+        AREA_CACHE[name] = area
+    return AREA_CACHE[name]
 
 
 phase_store = PhaseStore(db)
