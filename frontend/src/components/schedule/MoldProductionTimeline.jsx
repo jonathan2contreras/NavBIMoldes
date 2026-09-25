@@ -46,6 +46,7 @@ export default function MoldProductionTimeline({ readiness }) {
                 {molds.map((row) => <li key={row.name} className="flex min-w-0 items-center gap-2 rounded-md border border-[#E5E5EA] bg-[#FAFAFC] px-2.5 py-1.5 text-xs font-bold" data-testid="mold-production-mold" data-mold={row.name} data-start={row.first}>
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: row.mold?.color || "#8E8E93" }} aria-hidden="true" />
                   <span className="break-words">{row.name}</span>
+                  {(row.mold?.copies || 1) > 1 && <span className="rounded bg-[#E8E8ED] px-1.5 py-0.5 text-[10px] font-semibold text-[#3A3A3C]" data-testid="mold-production-copies">{row.mold.copies} copias</span>}
                 </li>)}
               </ul>
             </>}

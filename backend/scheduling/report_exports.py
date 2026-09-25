@@ -60,6 +60,7 @@ class ReadinessRow(BaseModel):
     name: str
     tipo: str | None = None
     color: str | None = None
+    copies: int = Field(default=1, ge=1)
     first: str
     last: str
     days: int = 0

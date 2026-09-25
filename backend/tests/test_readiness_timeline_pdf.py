@@ -49,6 +49,17 @@ def test_same_day_start_finish_and_escaped_names():
     assert len(page_sizes(build_readiness_pdf(readiness_story(data), data))) == 2
 
 
+def test_duplicate_mold_is_labeled_without_repeating_its_milestone():
+    data = ReadinessPayload(start_date="2026-12-14", finish_date="2026-12-15", rows=[
+        dict(name="Molde <A> & B", first="2026-12-14", last="2026-12-15", copies=3),
+        dict(name="M-02", first="2026-12-15", last="2026-12-15"),
+    ])
+    chart = ProductionTimeline(data.rows, data.start_date, data.finish_date, 750, 390)
+    labels = [paragraph.getPlainText() for column in chart.columns for paragraph, _, color in column if color is not None]
+    assert labels == ["Molde <A> & B · 3 copias", "M-02"]
+    assert len(page_sizes(build_readiness_pdf(readiness_story(data), data))) == 2
+
+
 def test_empty_report_does_not_add_blank_timeline_page():
     data = ReadinessPayload()
     assert len(page_sizes(build_readiness_pdf(readiness_story(data), data))) == 1

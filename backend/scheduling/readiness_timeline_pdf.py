@@ -46,7 +46,8 @@ class ProductionTimeline(Flowable):
                     color = colors.HexColor(row.color or "#8E8E93")
                 except (ValueError, TypeError):
                     color = colors.HexColor("#8E8E93")
-                entries.append((escape(row.name), color))
+                copies = f" · {row.copies} copias" if row.copies > 1 else ""
+                entries.append((escape(row.name) + copies, color))
             column = []
             for text, color in entries:
                 paragraph = Paragraph(text, text_style)

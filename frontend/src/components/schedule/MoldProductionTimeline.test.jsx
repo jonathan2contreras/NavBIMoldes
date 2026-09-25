@@ -35,6 +35,19 @@ test("renders one point when start and finish are the same day", () => {
   expect(container.querySelector('[data-testid="mold-production-mold"]').dataset.start).toBe("2026-12-01");
 });
 
+test("shows the number of copies only for duplicated molds", () => {
+  render({ start_date: "2026-12-01", molds: [
+    { name: "M-01", copies: 3 }, { name: "M-02", copies: 1 },
+  ], panels: [
+    { molde: "M-01", date: "2026-12-01" },
+    { molde: "M-02", date: "2026-12-02" },
+  ] });
+  const duplicated = container.querySelector('[data-mold="M-01"]');
+  const normal = container.querySelector('[data-mold="M-02"]');
+  expect(duplicated.querySelector('[data-testid="mold-production-copies"]').textContent).toBe("3 copias");
+  expect(normal.querySelector('[data-testid="mold-production-copies"]')).toBeNull();
+});
+
 test("does not show a timeline without scheduled molds", () => {
   render({ start_date: "2026-12-01", molds: [{ name: "M-01" }], panels: [] });
   expect(container.childElementCount).toBe(0);

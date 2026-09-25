@@ -18,6 +18,7 @@ export default function ReadinessExport({ readiness, disabled }) {
           start_date: start, finish_date: finish,
           rows: rows.map((row) => ({
             name: row.name, tipo: row.mold?.tipo || null, color: row.mold?.color || null,
+            copies: row.mold?.copies || 1,
             first: row.first, last: row.last, days: row.dayCount, panels: row.panels,
             total: row.mold?.total ?? row.panels, area: Math.round((row.area || 0) * 100) / 100,
           })),
