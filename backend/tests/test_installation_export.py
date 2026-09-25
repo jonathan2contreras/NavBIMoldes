@@ -1,9 +1,10 @@
 """Installation export never depends on fabrication eligibility or saved schedules."""
 from copy import deepcopy
+import re
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from reportlab.platypus import PageBreak, Table
+from reportlab.platypus import Table
 
 from scheduling.installation_export import (
     create_installation_export_router, installation_gantt_story, to_installation_gantt_pdf,
@@ -39,12 +40,23 @@ def test_empty_plan_generates_readable_pdf():
     assert to_installation_gantt_pdf(data).startswith(b"%PDF-")
 
 
-def test_skips_empty_blocks_but_keeps_week_spacing():
+def test_skips_empty_blocks_but_keeps_week_spacing_on_one_page():
     data = plan()
     data["items"].append({"front_id": "a", "week": "2027-08-02", "object_name": "p4"})
     story = installation_gantt_story(data)
-    assert sum(isinstance(item, Table) for item in story) == 2
-    assert sum(isinstance(item, PageBreak) for item in story) == 1
+    tables = [item for item in story if isinstance(item, Table)]
+    assert len(tables) == 1
+    assert len(tables[0]._cellvalues[0]) == 17  # Two occupied eight-week blocks.
+    assert tables[0]._cellvalues[1][9] == "1 paneles"
+    pdf = to_installation_gantt_pdf(data)
+    assert len(re.findall(rb"/Type\s*/Page\b", pdf)) == 1
+
+
+def test_many_fronts_still_fit_one_page():
+    data = plan()
+    data["fronts"] = [{"id": str(i), "name": f"Frente {i}", "color": "#17BEBB"} for i in range(50)]
+    data["items"] = [{"front_id": str(i), "week": "2027-02-15"} for i in range(50)]
+    assert len(re.findall(rb"/Type\s*/Page\b", to_installation_gantt_pdf(data))) == 1
 
 
 def test_endpoint_uses_current_installation_plan():
