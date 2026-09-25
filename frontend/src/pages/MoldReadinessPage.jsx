@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { ArrowLeftRight, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { useSchedule } from "../components/schedule/useSchedule";
 import { MoldReadinessTimeline } from "../components/schedule/MoldReadinessTimeline";
@@ -9,6 +9,7 @@ import MoldProductionTimeline from "../components/schedule/MoldProductionTimelin
 
 export default function MoldReadinessPage() {
   const { data, loading, error, refresh } = useSchedule();
+  const [view, setView] = useState("timeline");
   const readiness = useMemo(() => (data ? buildReadiness(data) : null), [data]);
 
   return <div className="h-full overflow-y-auto bg-white text-[#111111]" data-testid="mold-readiness-screen">
@@ -29,8 +30,17 @@ export default function MoldReadinessPage() {
       {!data && loading && <div role="status" className="flex justify-center py-20" data-testid="mold-readiness-loading"><Loader2 className="animate-spin" aria-label="Cargando plazos de moldes" /></div>}
 
       {data && readiness && <>
-        <MoldProductionTimeline readiness={readiness} />
-        <MoldReadinessTimeline readiness={readiness} />
+        {readiness.rows.length > 0 && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-[#636366]">Vista: {view === "timeline" ? "Línea de tiempo" : "Cronograma"}</p>
+          <Button variant="outline" onClick={() => setView((current) => current === "timeline" ? "schedule" : "timeline")} aria-controls="mold-readiness-view" data-testid="mold-readiness-view-toggle">
+            <ArrowLeftRight aria-hidden="true" />{view === "timeline" ? "Ver cronograma" : "Ver línea de tiempo"}
+          </Button>
+        </div>}
+        <div id="mold-readiness-view">
+          {view === "timeline" && readiness.rows.length > 0
+            ? <MoldProductionTimeline readiness={readiness} />
+            : <MoldReadinessTimeline readiness={readiness} />}
+        </div>
       </>}
     </div>
   </div>;

@@ -26,19 +26,19 @@ export default function MoldProductionTimeline({ readiness }) {
         <div><span className="block text-[#636366]">Fin de producción</span><time dateTime={end} className="font-bold">{dateLabel(end)}</time></div>
       </div>
     </div>
-    <ol aria-label="Fechas de inicio de producción por molde">
+    <div className="overflow-x-auto pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007AFF]" tabIndex={0} role="region" aria-label="Línea de tiempo horizontal, desplazable" data-testid="mold-production-scroll">
+    <ol className="flex w-max min-w-full px-1 pt-1" aria-label="Fechas de inicio de producción por molde">
       {dates.map((date, index) => {
         const molds = byDate.get(date) || [];
         const isStart = date === start;
         const isEnd = date === end;
-        return <li key={date} className="grid grid-cols-[18px_minmax(0,1fr)] gap-x-3 sm:grid-cols-[126px_18px_minmax(0,1fr)]" data-testid="mold-production-milestone" data-date={date}>
-          <time dateTime={date} className="hidden pt-0.5 text-xs font-semibold capitalize text-[#3A3A3C] sm:block">{dateLabel(date)}</time>
-          <div className="relative flex justify-center" aria-hidden="true">
-            {index < dates.length - 1 && <span className="absolute bottom-0 top-2 w-0.5 bg-[#D1D1D6]" />}
-            <span className={`relative mt-1 h-3 w-3 shrink-0 rounded-full border-2 ${isStart || isEnd ? "border-[#111111] bg-[#111111]" : "border-[#007AFF] bg-white"}`} />
+        return <li key={date} className="w-44 min-w-0 flex-1" data-testid="mold-production-milestone" data-date={date}>
+          <time dateTime={date} className="block pr-4 text-xs font-semibold capitalize text-[#3A3A3C]">{dateLabel(date)}</time>
+          <div className="relative my-3 flex h-3 items-center" aria-hidden="true">
+            {index < dates.length - 1 && <span className="absolute left-1.5 right-0 h-0.5 bg-[#D1D1D6]" />}
+            <span className={`relative h-3 w-3 shrink-0 rounded-full border-2 ${isStart || isEnd ? "border-[#111111] bg-[#111111]" : "border-[#007AFF] bg-white"}`} />
           </div>
-          <div className={`min-w-0 ${index < dates.length - 1 ? "pb-5" : "pb-1"}`}>
-            <time dateTime={date} className="mb-1 block text-xs font-semibold capitalize text-[#3A3A3C] sm:hidden">{dateLabel(date)}</time>
+          <div className="min-w-0 pr-5 pb-1">
             {(isStart || isEnd) && <p className="mb-1 text-xs font-bold">{[isStart && "Inicio del cronograma", isEnd && "Fin de producción"].filter(Boolean).join(" · ")}</p>}
             {molds.length > 0 && <>
               <p className="mb-2 text-[11px] text-[#636366]">Inicio de producción · {molds.length} {molds.length === 1 ? "molde" : "moldes"}</p>
@@ -53,6 +53,7 @@ export default function MoldProductionTimeline({ readiness }) {
         </li>;
       })}
     </ol>
-    <p className="mt-4 border-t border-[#E5E5EA] pt-3 text-[11px] text-[#636366]">Hitos ordenados por fecha; la separación entre puntos no representa la duración. El gráfico inferior muestra los períodos de fabricación a escala.</p>
+    </div>
+    <p className="mt-4 border-t border-[#E5E5EA] pt-3 text-[11px] text-[#636366]">Desplázate horizontalmente para ver todas las fechas. Hitos ordenados por fecha; la separación entre puntos no representa la duración. La vista Cronograma muestra los períodos de fabricación a escala.</p>
   </section>;
 }
