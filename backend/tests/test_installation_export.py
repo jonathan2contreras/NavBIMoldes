@@ -8,7 +8,8 @@ from PIL import Image
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from reportlab.platypus import Table
+from reportlab.lib.units import cm
+from reportlab.platypus import Image as PdfImage, Paragraph, Table
 
 from scheduling.installation_export import (
     create_installation_export_router, facade_thumbnails, installation_gantt_story, to_installation_gantt_pdf,
@@ -75,7 +76,12 @@ def test_four_model_views_below_gantt_on_one_page():
     thumbnail_table = facade_thumbnails(images)[-1]
     assert len(thumbnail_table._cellvalues) == 1
     assert len(thumbnail_table._cellvalues[0]) == 7  # Four views with three gaps, all in one line.
-    assert thumbnail_table._colWidths[0] > 6 * 28  # Views remain large.
+    assert thumbnail_table._colWidths == [14 * cm, cm, 14 * cm, cm, 14 * cm, cm, 14 * cm]
+    for cell, orientation in zip(thumbnail_table._cellvalues[0][::2], ("Norte", "Sur", "Este", "Oeste")):
+        assert isinstance(cell[0], PdfImage)
+        assert (cell[0].drawWidth, cell[0].drawHeight) == (14 * cm, 10.5 * cm)
+        assert isinstance(cell[-1], Paragraph)
+        assert cell[-1].getPlainText() == f"Fachada {orientation} · vista isométrica"
     pdf = to_installation_gantt_pdf(data, images)
     assert len(re.findall(rb"/Type\s*/Page\b", pdf)) == 1
     assert len(re.findall(rb"/Subtype\s*/Image\b", pdf)) >= 4

@@ -98,12 +98,12 @@ def facade_thumbnails(images):
             raw = base64.b64decode(value.split(",", 1)[1], validate=True)
             if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
                 raise ValueError("Not PNG")
-            image = Image(BytesIO(raw), width=7 * cm, height=5.25 * cm)
+            image = Image(BytesIO(raw), width=14 * cm, height=10.5 * cm)
         except (ValueError, binascii.Error, OSError) as exc:
             raise HTTPException(422, f"Imagen inválida: {label}.") from exc
-        cells.append([Paragraph(f"Fachada {label} · vista isométrica", styles["BodyText"]), Spacer(1, 8), image])
+        cells.append([image, Spacer(1, 8), Paragraph(f"Fachada {label} · vista isométrica", styles["BodyText"])])
     thumbnails = Table([[cells[0], "", cells[1], "", cells[2], "", cells[3]]],
-                       colWidths=[7 * cm, cm, 7 * cm, cm, 7 * cm, cm, 7 * cm], hAlign="CENTER")
+                       colWidths=[14 * cm, cm, 14 * cm, cm, 14 * cm, cm, 14 * cm], hAlign="CENTER")
     thumbnails.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
                                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                     ("RIGHTPADDING", (0, 0), (-1, -1), 0),
