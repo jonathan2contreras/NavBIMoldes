@@ -135,7 +135,7 @@ let phaseVisible = true;
 let tagsVisible = true;
 let weekHighlighted = new Set();
 function shownTag(name) {
-  if (weekHighlighted.has(name)) return { color: '#007AFF' };
+  if (weekHighlighted.has(name)) return { color: '#FFFFFF' };
   const ph = phaseVisible && phases[name];
   return ph ? { color: ph.color } : (tagsVisible && tags[name]) || null;
 }
