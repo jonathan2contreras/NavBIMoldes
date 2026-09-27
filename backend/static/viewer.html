@@ -436,7 +436,7 @@ function updateFrontLabelVisibility() {
 function rebuildFrontLabels() {
   clearFrontLabels();
   if (!loaded || !phaseVisible) return;
-  const height = sceneMaxDim * 0.05;
+  const height = sceneMaxDim * 0.042;
   const entries = [];
   for (const group of frontLabelGroups) {
     const meshes = (group.names || []).map((n) => meshesByName[n]).filter(Boolean);
