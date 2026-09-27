@@ -11,6 +11,7 @@ import { DayDetails } from "../components/schedule/DayDetails";
 import { ScheduleBoard } from "../components/schedule/ScheduleBoard";
 import { ScheduleProduction } from "../components/schedule/ScheduleProduction";
 import { ScheduleExport } from "../components/schedule/ScheduleExport";
+import { DailyAreaTarget } from "../components/schedule/DailyAreaTarget";
 import "../components/schedule/schedule.css";
 
 export default function SchedulePage() {
@@ -52,8 +53,11 @@ export default function SchedulePage() {
         {data.stale_entries > 0 && <p className="mb-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900" data-testid="schedule-stale-warning">{data.stale_entries} asignaciones del cronograma ya no coinciden con el catálogo de moldes. Las piezas con un molde nuevo están pendientes de programar.</p>}
         {rangeStart && selected && <div className="grid min-w-0 gap-6 border-t border-[#E5E5EA] pt-5 xl:grid-cols-[minmax(0,1fr)_310px]">
           <div className="min-w-0">
-          <div className="mb-3 inline-flex rounded-lg border border-[#C7C7CC] p-0.5" role="tablist" data-testid="schedule-view-toggle">
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-lg border border-[#C7C7CC] p-0.5" role="tablist" data-testid="schedule-view-toggle">
             {[["board", "Tablero"], ["gantt", "Gantt por molde"]].map(([key, label]) => <button key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)} data-testid={`schedule-view-${key}`} className={`rounded-md px-3 py-1.5 text-xs font-bold ${view === key ? "bg-[#1C1C1E] text-white" : "text-[#3A3A3C]"}`}>{label}</button>)}
+          </div>
+          <DailyAreaTarget data={data} />
           </div>
           {view === "board" ? <ScheduleBoard data={data} selected={selected} onSelect={select} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} rangeStart={rangeStart} setRangeStart={setRangeStart} /> :
           <GanttTimeline data={data} selected={selected} onSelect={select} admin={isAdmin && !data.needs_replan && !data.awaiting_location} busy={saving} onMove={move} onSetCopies={setMoldCopies} rangeStart={rangeStart} setRangeStart={setRangeStart} />}
