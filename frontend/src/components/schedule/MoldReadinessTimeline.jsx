@@ -36,6 +36,7 @@ export const MoldReadinessTimeline = ({ readiness }) => {
               <span className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: color }} />
                 <span className="truncate text-xs font-bold">{r.name}</span>
+                {(r.mold?.copies || 1) > 1 && <span className="shrink-0 rounded bg-[#E8E8ED] px-1.5 py-0.5 text-[10px] font-semibold text-[#3A3A3C]" data-testid="mold-readiness-copies">{r.mold.copies} copias</span>}
               </span>
               <span className="text-[11px] font-semibold text-[#FF3B30]" data-testid={`mold-readiness-deadline-${encodeURIComponent(r.name)}`}>Listo antes del {dateLabel(r.first)}</span>
               <span className="text-[10px] text-[#636366]">{r.mold?.tipo || "Sin tipo"} · {r.panels}/{r.mold?.total ?? r.panels} paneles · {r.dayCount} {r.dayCount === 1 ? "día" : "días"}</span>
