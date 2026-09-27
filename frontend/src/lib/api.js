@@ -53,7 +53,8 @@ export const api = {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `bimtracker_copia_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    const match = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "");
+    link.download = match ? match[1] : "NABIMOLDES_Copia.json";
     document.body.appendChild(link);
     link.click();
     link.remove();
