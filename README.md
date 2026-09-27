@@ -47,6 +47,23 @@ docker compose -f deploy/docker-compose.prod.yml up -d --build
 ```
 No uses `down -v`: borra el volumen de la base de datos. Si cambias `DOMAIN` hay que reconstruir (`--build`), porque la URL se incrusta en el frontend.
 
+### Despliegue automático (GitHub Actions)
+`.github/workflows/deploy.yml` se ejecuta en cada fusión/push a `main` (y a mano desde la pestaña **Actions → Deploy to VPS → Run workflow**). Entra por SSH al VPS, deja el código en el commit fusionado (`git reset --hard`, `deploy/.env` no se toca porque está en `.gitignore`) y ejecuta `deploy/update.sh`, que reconstruye, reinicia y espera a que el backend esté sano. Si no lo está en 5 minutos, el job falla y muestra los logs.
+
+Configuración (una sola vez):
+1. En el VPS, crea un usuario con acceso a Docker (`sudo usermod -aG docker deploy`) y clona allí el repo (paso 2). Si el repo es privado, añade una *deploy key* de solo lectura en GitHub (**Settings → Deploy keys**) para que el VPS pueda hacer `git fetch`.
+2. Genera una clave SSH para GitHub Actions: `ssh-keygen -t ed25519 -f gh_deploy -N ""` y añade `gh_deploy.pub` a `~/.ssh/authorized_keys` del usuario del VPS.
+3. En GitHub: **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Valor |
+|---|---|
+| `VPS_HOST` | IP o dominio del VPS |
+| `VPS_USER` | Usuario SSH (ej. `deploy`) |
+| `VPS_SSH_KEY` | Contenido completo de la clave privada `gh_deploy` |
+| `VPS_PATH` | Ruta del repo en el VPS (ej. `/home/deploy/nabimoldes`) |
+| `VPS_PORT` | Opcional, por defecto `22` |
+| `VPS_KNOWN_HOSTS` | Opcional pero recomendado: salida de `ssh-keyscan TU_IP` |
+
 ### Copias de seguridad
 ```bash
 source deploy/.env
