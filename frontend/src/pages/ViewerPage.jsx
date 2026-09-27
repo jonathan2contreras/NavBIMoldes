@@ -7,7 +7,7 @@ import { TagSheet } from "../components/TagSheet";
 import { BulkTagModal } from "../components/BulkTagModal";
 import { PhaseAssignModal } from "../components/phases/PhaseAssignModal";
 import { PhaseListPanel } from "../components/phases/PhaseListPanel";
-import { groupPhases, phaseLabelGroups, phaseLayerMap, weekColor, weekShort } from "../lib/phases";
+import { groupPhases, phaseLayerMap, weekColor, weekShort } from "../lib/phases";
 import { ViewerLoading } from "../components/ViewerLoading";
 import { useRole } from "../context/RoleContext";
 import { PROJECT_PANELS_CHANGED } from "../context/ProjectPanelsContext";
@@ -114,7 +114,6 @@ export default function ViewerPage({ installationSelection, installationPlan, co
   // The phase layer is resent whenever the list changes or the model finishes loading.
   useEffect(() => {
     if (!loading) sendCmd("applyPhases", [phaseLayerMap(plan)]);
-    if (!loading) sendCmd("setFrontLabels", [phaseLabelGroups(plan)]);
   }, [plan, loading, sendCmd]);
 
   const togglePhaseLayer = () => {
