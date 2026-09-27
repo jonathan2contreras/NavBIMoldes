@@ -3,11 +3,22 @@ const BASE = process.env.REACT_APP_BACKEND_URL;
 export const BACKEND_URL = BASE;
 export const VIEWER_URL = `${BASE}/api/viewer`;
 
+const TOKEN_KEY = "nabimoldes_admin_token";
+export const getAdminToken = () => localStorage.getItem(TOKEN_KEY);
+export const setAdminToken = (token) => localStorage.setItem(TOKEN_KEY, token);
+export const clearAdminToken = () => localStorage.removeItem(TOKEN_KEY);
+const authHeaders = () => (getAdminToken() ? { Authorization: `Bearer ${getAdminToken()}` } : {});
+
 async function req(path, opts = {}) {
   const r = await fetch(`${BASE}/api${path}`, {
     ...opts,
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
   });
+  if (r.status === 401 && getAdminToken()) {
+    // Expired or invalid session: drop it so the UI returns to view-only mode.
+    clearAdminToken();
+    window.dispatchEvent(new Event("admin-logout"));
+  }
   if (!r.ok) {
     const body = await r.json().catch(() => null);
     let message = typeof body?.detail === "string" ? body.detail : `Error de solicitud (${r.status}).`;
@@ -51,13 +62,15 @@ export const api = {
   restoreBackup: async (file) => {
     const form = new FormData();
     form.append("file", file);
-    const response = await fetch(`${BASE}/api/backup`, { method: "POST", body: form });
+    const response = await fetch(`${BASE}/api/backup`, { method: "POST", body: form, headers: authHeaders() });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       throw new Error(body?.detail || "No se pudo restaurar la copia de seguridad.");
     }
     return response.json();
   },
+  login: (password) => req("/auth/login", { method: "POST", body: JSON.stringify({ password }) }),
+  me: () => req("/auth/me"),
   getSchedule: () => req("/schedule"),
   generateSchedule: (body) => req("/schedule/generate", { method: "POST", body: JSON.stringify(body) }),
   saveSchedule: (revision) => req("/schedule/save", { method: "POST", body: JSON.stringify({ revision }) }),
@@ -75,14 +88,14 @@ export const api = {
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
+    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd, headers: authHeaders() });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
   uploadPdf: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd });
+    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd, headers: authHeaders() });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },

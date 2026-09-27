@@ -22,6 +22,7 @@ from scheduling.report_exports import create_report_exports_router
 from scheduling.spatial import SpatialCatalog
 from scheduling.phases import PhaseStore, create_phase_router
 from backup import create_backup_router
+from auth import create_auth_router, require_admin_for_writes
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1134,8 +1135,11 @@ def apply_restored_settings(settings):
 
 
 api_router.include_router(create_backup_router(db, STATIC_DIR, storage_get_object, put_object, apply_restored_settings))
+api_router.include_router(create_auth_router())
 app.include_router(api_router)
 
+# Registered before CORS so CORS stays outermost and 401 responses keep their CORS headers.
+app.middleware("http")(require_admin_for_writes)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

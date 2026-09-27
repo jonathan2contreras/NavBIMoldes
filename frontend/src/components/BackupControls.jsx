@@ -1,12 +1,14 @@
 import React, { useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { api } from "@/lib/api";
+import { useRole } from "@/context/RoleContext";
 import {
   AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 
 export default function BackupControls() {
+  const { isAdmin } = useRole();
   const inputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -52,11 +54,13 @@ export default function BackupControls() {
         title="Descargar copia de todos los datos" data-testid="backup-download">
         <Download size={15} /> Copia de seguridad
       </button>
-      <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
-        className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2.5 text-xs font-semibold text-[#3A3A3C] hover:bg-[#F2F2F7] disabled:opacity-50"
-        title="Restaurar copia local" data-testid="backup-restore">
-        <Upload size={15} /> Restaurar
-      </button>
+      {isAdmin && (
+        <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+          className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2.5 text-xs font-semibold text-[#3A3A3C] hover:bg-[#F2F2F7] disabled:opacity-50"
+          title="Restaurar copia local" data-testid="backup-restore">
+          <Upload size={15} /> Restaurar
+        </button>
+      )}
       <input ref={inputRef} type="file" accept=".json,application/json" className="hidden"
         aria-label="Seleccionar copia de seguridad" onChange={(event) => {
           setMessage("");
