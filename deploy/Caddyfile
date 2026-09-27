@@ -1,0 +1,16 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Caddy obtains and renews the Let's Encrypt certificate for $DOMAIN automatically.
+{$DOMAIN} {
+	encode gzip zstd
+
+	handle /api/* {
+		reverse_proxy backend:8001
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}

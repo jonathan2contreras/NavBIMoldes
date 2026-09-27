@@ -1,29 +1,40 @@
-"""Login-free routing regressions; no writes to project data."""
+"""Shared-password login: reads are public, writes need an admin token. No writes to project data."""
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
 from server import app
 
-
-@pytest.mark.parametrize("method,path", [
+WRITES = [
     ("POST", "/api/molds"),
     ("PUT", "/api/tags"),
     ("POST", "/api/schedule/generate"),
     ("PATCH", "/api/phases/week"),
     ("PUT", "/api/project/panels"),
-])
-def test_writes_reach_validation_without_login(method, path):
-    # Missing required fields must reach validation, not a login check.
+]
+
+
+@pytest.mark.parametrize("method,path", WRITES)
+def test_writes_rejected_without_login(method, path):
     response = TestClient(app).request(method, path, json={})
+    assert response.status_code == 401
+
+
+def test_wrong_password_rejected():
+    response = TestClient(app).post("/api/auth/login", json={"password": "definitely-wrong"})
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize("method,path", WRITES)
+def test_writes_reach_validation_with_login(method, path):
+    client = TestClient(app)
+    token = client.post("/api/auth/login", json={"password": os.environ["ADMIN_PASSWORD"]}).json()["token"]
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).json() == {"admin": True}
+    # Missing required fields must reach validation once logged in.
+    response = client.request(method, path, json={}, headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 422
 
 
-def test_password_endpoint_removed():
-    response = TestClient(app).post("/api/admin/verify", json={"password": ""})
-    assert response.status_code == 404
-
-
-def test_no_auth_dependencies_remain():
-    for route in app.routes:
-        if hasattr(route, "dependant"):
-            assert not route.dependant.dependencies, route.path
+def test_reads_stay_public():
+    assert TestClient(app).get("/api/phases").status_code == 200

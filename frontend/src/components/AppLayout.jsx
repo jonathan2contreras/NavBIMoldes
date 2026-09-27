@@ -2,11 +2,13 @@ import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { BarChart3, Box, CalendarClock, CalendarRange, FileText, Layers, List } from "lucide-react";
 import BackupControls from "@/components/BackupControls";
+import AdminLogin from "@/components/AdminLogin";
+import { useRole } from "@/context/RoleContext";
 
 const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
-  { to: "/molds", label: "Moldes", icon: Layers, testId: "tab-molds" },
+  { to: "/molds", label: "Moldes", icon: Layers, testId: "tab-molds", adminOnly: true },
   { to: "/reports", label: "Reportes", icon: FileText, testId: "tab-reports" },
   { to: "/schedule", label: "Fabricación", icon: CalendarRange, testId: "tab-schedule" },
   { to: "/installation", label: "Instalación", icon: CalendarRange, testId: "tab-installation" },
@@ -15,11 +17,12 @@ const TABS = [
 ];
 
 export default function AppLayout() {
+  const { isAdmin } = useRole();
   return (
     <div className="flex h-dvh min-w-0 flex-col bg-white">
       <p className="shrink-0 px-2 pt-3 text-center text-sm font-black tracking-[0.2em] text-[#1C1C1E] sm:px-6" data-testid="app-title">NABIMOLDES</p>
       <nav aria-label="Navegación principal" className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-[#E5E5EA] bg-white px-2 py-2 sm:px-6" data-testid="main-nav">
-        {TABS.map((t) => (
+        {TABS.filter((t) => isAdmin || !t.adminOnly).map((t) => (
           <NavLink
             key={t.to}
             to={t.to}
@@ -36,6 +39,7 @@ export default function AppLayout() {
           </NavLink>
         ))}
         <BackupControls />
+        <AdminLogin />
       </nav>
       <main className="min-h-0 min-w-0 flex-1">
         <Outlet />

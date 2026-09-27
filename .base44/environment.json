@@ -3,6 +3,8 @@
   "healthPath": "/",
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
   "secrets": [
-    { "name": "EMERGENT_LLM_KEY", "description": "Emergent universal key for object storage (photo/PDF uploads)", "requiredAtBoot": false }
+    { "name": "EMERGENT_LLM_KEY", "description": "Emergent universal key for object storage (photo/PDF uploads)", "requiredAtBoot": false },
+    { "name": "ADMIN_PASSWORD", "description": "Shared password that unlocks edit mode; without it visitors are view-only", "requiredAtBoot": false },
+    { "name": "JWT_SECRET", "description": "Signing key for admin login tokens", "requiredAtBoot": true, "generatedForDevelopment": true }
   ]
 }
