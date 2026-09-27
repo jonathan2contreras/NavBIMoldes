@@ -148,6 +148,7 @@ let pendingFocus = null;
 let isolation = 'all';
 let sceneMaxDim = 1;
 let modelCenter = new THREE.Vector3();
+let modelTopY = 0;
 let loaded = false;
 const exportDecorations = [];
 
@@ -400,7 +401,9 @@ function makeFrontLabel(text) {
   cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#1C1C1E';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 18;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const font = (size) => `900 ${size}px system-ui, -apple-system, sans-serif`;
@@ -443,7 +446,7 @@ function rebuildFrontLabels() {
     const center = box.getCenter(new THREE.Vector3());
     const sprite = makeFrontLabel(group.text);
     sprite.scale.set(height * 3.2, height, 1);
-    const topY = frontLabelsLifted.has(group.text) ? modelCenter.y + sceneMaxDim * 0.5 : box.max.y;
+    const topY = frontLabelsLifted.has(group.text) ? modelTopY : box.max.y;
     sprite.position.set(center.x, topY + height * 0.7, center.z);
     scene.add(sprite);
     frontLabelEntries.push({ sprite, meshes });
@@ -492,6 +495,7 @@ loader.load('/api/model',
     const maxDim = Math.max(size.x, size.y, size.z);
     sceneMaxDim = maxDim;
     modelCenter.copy(center);
+    modelTopY = box.max.y;
     camera.near = Math.max(maxDim / 1000, 0.01);
     camera.far = maxDim * 20;
     camera.updateProjectionMatrix();
