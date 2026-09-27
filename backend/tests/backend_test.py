@@ -28,7 +28,7 @@ def test_root(s):
     assert r.status_code == 200
     d = r.json()
     assert d["objects"] == 12275
-    assert d["message"] == "BIMTracker API"
+    assert d["message"] == "NaBiMoldes API"
 
 
 # ---- Admin verify ----

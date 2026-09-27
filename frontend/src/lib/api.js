@@ -3,26 +3,11 @@ const BASE = process.env.REACT_APP_BACKEND_URL;
 export const BACKEND_URL = BASE;
 export const VIEWER_URL = `${BASE}/api/viewer`;
 
-const authHeaders = () => {
-  const token = localStorage.getItem("bim_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-const handleUnauthorized = () => {
-  localStorage.removeItem("bim_role");
-  localStorage.removeItem("bim_token");
-  if (window.location.pathname !== "/login") window.location.assign("/login");
-};
-
 async function req(path, opts = {}) {
   const r = await fetch(`${BASE}/api${path}`, {
     ...opts,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
+    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
   });
-  if (r.status === 401) {
-    handleUnauthorized();
-    throw new Error("HTTP 401");
-  }
   if (!r.ok) {
     const body = await r.json().catch(() => null);
     let message = typeof body?.detail === "string" ? body.detail : `Error de solicitud (${r.status}).`;
@@ -47,6 +32,32 @@ async function req(path, opts = {}) {
 export const fileUrl = (path) => `${BASE}/api/files/${path}`;
 
 export const api = {
+  downloadBackup: async () => {
+    const response = await fetch(`${BASE}/api/backup`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.detail || "No se pudo crear la copia de seguridad.");
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bimtracker_copia_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  },
+  restoreBackup: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`${BASE}/api/backup`, { method: "POST", body: form });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.detail || "No se pudo restaurar la copia de seguridad.");
+    }
+    return response.json();
+  },
   getSchedule: () => req("/schedule"),
   generateSchedule: (body) => req("/schedule/generate", { method: "POST", body: JSON.stringify(body) }),
   saveSchedule: (revision) => req("/schedule/save", { method: "POST", body: JSON.stringify({ revision }) }),
@@ -64,22 +75,14 @@ export const api = {
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd, headers: authHeaders() });
-    if (r.status === 401) {
-      handleUnauthorized();
-      throw new Error("HTTP 401");
-    }
+    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
   uploadPdf: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd, headers: authHeaders() });
-    if (r.status === 401) {
-      handleUnauthorized();
-      throw new Error("HTTP 401");
-    }
+    const r = await fetch(`${BASE}/api/upload/pdf`, { method: "POST", body: fd });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
@@ -109,6 +112,4 @@ export const api = {
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   deletePhoto: (objectName, photo) =>
     req(`/photos?object_name=${encodeURIComponent(objectName)}&photo=${encodeURIComponent(photo)}`, { method: "DELETE" }),
-  verifyAdmin: (password) =>
-    req("/admin/verify", { method: "POST", body: JSON.stringify({ password }) }),
 };

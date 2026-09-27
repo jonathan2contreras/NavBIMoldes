@@ -23,6 +23,14 @@ export const groupPhases = (plan) =>
     return { ...front, weeks: weeks.map((week, index) => ({ week, index, items: items.filter((i) => i.week === week) })) };
   });
 
+/** One label per front: the text and the panels it must sit above in the 3D model. */
+export const phaseLabelGroups = (plan) =>
+  groupPhases(plan).map((front) => ({
+    id: front.id,
+    text: front.name,
+    names: front.weeks.flatMap(({ items }) => items.map((i) => i.object_name)),
+  }));
+
 /** {object_name: {color, label}} for the 3D layer: front color, lighter for each later week. */
 export const phaseLayerMap = (plan) => {
   const map = {};

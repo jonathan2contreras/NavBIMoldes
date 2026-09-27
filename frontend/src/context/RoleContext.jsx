@@ -1,29 +1,11 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useContext } from "react";
 
-const KEY = "bim_role";
-const TOKEN_KEY = "bim_token";
-const RoleContext = createContext(null);
+// Keep the existing editing controls enabled in this login-free app.
+const access = { isAdmin: true };
+const RoleContext = createContext(access);
 
-export const RoleProvider = ({ children }) => {
-  const [role, setRoleState] = useState(() => localStorage.getItem(KEY) || null);
-
-  const setRole = useCallback((r, token) => {
-    localStorage.setItem(KEY, r);
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    setRoleState(r);
-  }, []);
-
-  const logout = useCallback(() => {
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    setRoleState(null);
-  }, []);
-
-  return (
-    <RoleContext.Provider value={{ role, isAdmin: role === "admin", setRole, logout }}>
-      {children}
-    </RoleContext.Provider>
-  );
-};
+export const RoleProvider = ({ children }) => (
+  <RoleContext.Provider value={access}>{children}</RoleContext.Provider>
+);
 
 export const useRole = () => useContext(RoleContext);

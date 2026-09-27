@@ -1,0 +1,29 @@
+# Blueprint de Render para el backend (FastAPI + MongoDB).
+# El frontend vive en Netlify (ver netlify.toml); aquí solo se despliega la API.
+#
+# Render no ofrece MongoDB: crea un clúster gratuito en MongoDB Atlas y pega su
+# cadena de conexión en MONGO_URL al crear el Blueprint.
+#
+# Uso: Render → New + → Blueprint → conecta este repositorio.
+
+services:
+  - type: web
+    name: nabimoldes-api
+    runtime: docker
+    plan: free
+    # Región más cercana a Perú.
+    region: oregon
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/
+    autoDeploy: true
+    envVars:
+      # Nombre de la base de datos dentro del clúster de Atlas.
+      - key: DB_NAME
+        value: bimtracker
+      # Cadena de conexión de MongoDB Atlas (mongodb+srv://...). Obligatoria.
+      - key: MONGO_URL
+        sync: false
+      # Opcional: habilita las subidas de fotos/PDF (almacenamiento de objetos).
+      - key: EMERGENT_LLM_KEY
+        sync: false

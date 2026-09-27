@@ -13,6 +13,14 @@ const queryClient = new QueryClient({
   },
 });
 
+// La app instalada en el móvil necesita el service worker; en desarrollo se omite
+// para no servir versiones antiguas en el preview.
+if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>

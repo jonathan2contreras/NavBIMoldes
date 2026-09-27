@@ -27,6 +27,7 @@ export default function InstallationGantt({ plan, admin, selection, onSelect, on
   return <div className="space-y-3" aria-busy={busy}>
     <div className="flex flex-wrap items-center gap-3 text-sm">
       <p className="flex-1 text-[#636366]">{admin ? "Arrastra una etiqueta a otra semana del mismo frente o edita su fecha en el calendario." : "Solo un administrador puede cambiar las fechas."} Semanas de lunes a sábado.</p>
+      <button className="rounded-lg border bg-white px-3 py-2 disabled:opacity-40" disabled={padding === 0} onClick={() => setPadding((p) => Math.max(0, p - 4))}>Reducir rango</button>
       <button className="rounded-lg border bg-white px-3 py-2" onClick={() => setPadding((p) => p + 4)}>Ampliar rango</button>
     </div>
     <div className="overflow-x-auto rounded-xl border border-[#D4D4D4] bg-white" data-testid="installation-gantt">

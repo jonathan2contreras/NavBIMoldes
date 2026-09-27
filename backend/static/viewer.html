@@ -135,7 +135,7 @@ let phaseVisible = true;
 let tagsVisible = true;
 let weekHighlighted = new Set();
 function shownTag(name) {
-  if (weekHighlighted.has(name)) return { color: '#007AFF' };
+  if (weekHighlighted.has(name)) return { color: '#FFFFFF' };
   const ph = phaseVisible && phases[name];
   return ph ? { color: ph.color } : (tagsVisible && tags[name]) || null;
 }
@@ -175,6 +175,7 @@ function applyAll() {
     mesh.material = matFor(shownTag(key), isHighlighted(key), key === hoveredName);
     mesh.visible = isVisibleFor(key);
   }
+  updateFrontLabelVisibility();
   renderer.shadowMap.needsUpdate = true;
   requestRender();
 }
@@ -237,7 +238,11 @@ window.viewerAPI = {
   },
   setPhaseVisible(on) {
     phaseVisible = !!on;
-    if (loaded) applyAll();
+    if (loaded) { applyAll(); rebuildFrontLabels(); }
+  },
+  setFrontLabels(groups) {
+    frontLabelGroups = groups || [];
+    if (loaded) rebuildFrontLabels();
   },
   setTagsVisible(on) {
     tagsVisible = !!on;
@@ -284,6 +289,7 @@ window.viewerAPI = {
     const oldAspect = camera.aspect;
     const visibility = meshList.map((mesh) => mesh.visible);
     const decorationVisibility = exportDecorations.map((mesh) => mesh.visible);
+    const labelVisibility = frontLabelEntries.map((entry) => entry.sprite.visible);
     const clearColor = renderer.getClearColor(new THREE.Color()).clone();
     const clearAlpha = renderer.getClearAlpha();
     try {
@@ -294,6 +300,7 @@ window.viewerAPI = {
       camera.updateProjectionMatrix();
       meshList.forEach((mesh) => { mesh.visible = true; });
       exportDecorations.forEach((mesh) => { mesh.visible = false; });
+      frontLabelEntries.forEach((entry) => { entry.sprite.visible = false; });
       const directions = {
         norte: [-0.6, 0.7, -1], sur: [0.6, 0.7, 1],
         este: [1, 0.7, -0.6], oeste: [-1, 0.7, 0.6],
@@ -313,6 +320,7 @@ window.viewerAPI = {
     } finally {
       meshList.forEach((mesh, index) => { mesh.visible = visibility[index]; });
       exportDecorations.forEach((mesh, index) => { mesh.visible = decorationVisibility[index]; });
+      frontLabelEntries.forEach((entry, index) => { entry.sprite.visible = labelVisibility[index]; });
       renderer.setClearColor(clearColor, clearAlpha);
       camera.position.copy(oldPosition);
       controls.target.copy(oldTarget);
@@ -378,6 +386,78 @@ function addCompassLabels(box, size, center, maxDim) {
     scene.add(m);
     exportDecorations.push(m);
   }
+}
+
+// Front labels: one billboard per front, anchored above its own panels.
+const frontLabelEntries = [];
+let frontLabelGroups = [];
+// Fronts whose own top is hidden behind other geometry: lift their label to the top of the model.
+const frontLabelsAlignedTo = { 'Frente 3': 'Frente 1' };
+
+function makeFrontLabel(text) {
+  const W = 512, H = 160;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 18;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const font = (size) => `900 ${size}px system-ui, -apple-system, sans-serif`;
+  let size = 120;
+  ctx.font = font(size);
+  while (ctx.measureText(text).width > W - 40 && size > 30) { size -= 4; ctx.font = font(size); }
+  ctx.fillText(text, W / 2, H / 2);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 4;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sprite.renderOrder = 2;
+  sprite.raycast = () => {};
+  return sprite;
+}
+
+function clearFrontLabels() {
+  for (const entry of frontLabelEntries) {
+    scene.remove(entry.sprite);
+    entry.sprite.material.map.dispose();
+    entry.sprite.material.dispose();
+  }
+  frontLabelEntries.length = 0;
+}
+
+function updateFrontLabelVisibility() {
+  for (const entry of frontLabelEntries) {
+    entry.sprite.visible = phaseVisible && entry.meshes.some((mesh) => mesh.visible);
+  }
+}
+
+function rebuildFrontLabels() {
+  clearFrontLabels();
+  if (!loaded || !phaseVisible) return;
+  const height = sceneMaxDim * 0.032;
+  const entries = [];
+  for (const group of frontLabelGroups) {
+    const meshes = (group.names || []).map((n) => meshesByName[n]).filter(Boolean);
+    if (!meshes.length) continue;
+    const box = new THREE.Box3();
+    for (const mesh of meshes) box.expandByObject(mesh);
+    entries.push({ group, meshes, box });
+  }
+  const anchorY = (name) => entries.find((e) => e.group.text === name)?.box.max.y;
+  for (const { group, meshes, box } of entries) {
+    const alignedTo = frontLabelsAlignedTo[group.text];
+    const topY = (alignedTo && anchorY(alignedTo)) || box.max.y;
+    const center = box.getCenter(new THREE.Vector3());
+    const sprite = makeFrontLabel(group.text);
+    sprite.scale.set(height * 3.2, height, 1);
+    sprite.position.set(center.x, topY + height * 0.7, center.z);
+    scene.add(sprite);
+    frontLabelEntries.push({ sprite, meshes });
+  }
+  updateFrontLabelVisibility();
+  requestRender();
 }
 
 // Load model
@@ -459,6 +539,7 @@ loader.load('/api/model',
     loaded = true;
     if (pendingTags) { tags = pendingTags; pendingTags = null; }
     applyAll();
+    rebuildFrontLabels();
     if (pendingFocus) { const f = pendingFocus; pendingFocus = null; focusByName(f); }
     // Compute per-piece façade orientation (N=-Z, S=+Z, E=+X, O=-X) and persist once
     try {

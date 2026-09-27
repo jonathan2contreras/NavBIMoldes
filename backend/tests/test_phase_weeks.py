@@ -4,7 +4,7 @@ import uuid
 from copy import deepcopy
 
 import pytest
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pymongo import MongoClient
 
@@ -34,13 +34,8 @@ def client():
     store = PhaseStore(db)
     store.collection = AsyncCollection()
 
-    # Test-only dependency; the live app retains its existing JWT admin check.
-    async def admin(authorization: str = Header(default="")):
-        if authorization != "test-admin":
-            raise HTTPException(401)
-
     app = FastAPI()
-    app.include_router(create_phase_router(store, lambda: set(), admin))
+    app.include_router(create_phase_router(store, lambda: set()))
     try:
         with TestClient(app) as http:
             yield http, plan
@@ -51,7 +46,7 @@ def client():
 
 def move(http, new_week, **overrides):
     payload = {"front_id": "a", "week": "2027-02-15", "new_week": new_week, **overrides}
-    return http.patch("/phases/week", json=payload, headers={"Authorization": "test-admin"})
+    return http.patch("/phases/week", json=payload)
 
 
 def test_move_preserves_order_other_fronts_and_persists(client):
@@ -90,8 +85,8 @@ def test_bad_date_is_rejected(client):
     assert http.get("/phases").json() == plan
 
 
-def test_admin_required(client):
-    http, plan = client
+def test_move_without_login(client):
+    http, _ = client
     response = http.patch("/phases/week", json={"front_id": "a", "week": "2027-02-15", "new_week": "2027-03-01"})
-    assert response.status_code == 401
-    assert http.get("/phases").json() == plan
+    assert response.status_code == 200
+    assert http.get("/phases").json() == response.json()
