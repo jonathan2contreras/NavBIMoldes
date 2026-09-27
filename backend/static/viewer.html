@@ -148,7 +148,6 @@ let pendingFocus = null;
 let isolation = 'all';
 let sceneMaxDim = 1;
 let modelCenter = new THREE.Vector3();
-let modelTopY = 0;
 let loaded = false;
 const exportDecorations = [];
 
@@ -393,7 +392,7 @@ function addCompassLabels(box, size, center, maxDim) {
 const frontLabelEntries = [];
 let frontLabelGroups = [];
 // Fronts whose own top is hidden behind other geometry: lift their label to the top of the model.
-const frontLabelsLifted = new Set(['Frente 3']);
+const frontLabelsAlignedTo = { 'Frente 3': 'Frente 1' };
 
 function makeFrontLabel(text) {
   const W = 512, H = 160;
@@ -438,17 +437,21 @@ function rebuildFrontLabels() {
   clearFrontLabels();
   if (!loaded || !phaseVisible) return;
   const height = sceneMaxDim * 0.032;
+  const entries = [];
   for (const group of frontLabelGroups) {
     const meshes = (group.names || []).map((n) => meshesByName[n]).filter(Boolean);
     if (!meshes.length) continue;
     const box = new THREE.Box3();
     for (const mesh of meshes) box.expandByObject(mesh);
+    entries.push({ group, meshes, box });
+  }
+  const anchorY = (name) => entries.find((e) => e.group.text === name)?.box.max.y;
+  for (const { group, meshes, box } of entries) {
+    const alignedTo = frontLabelsAlignedTo[group.text];
+    const topY = (alignedTo && anchorY(alignedTo)) || box.max.y;
     const center = box.getCenter(new THREE.Vector3());
     const sprite = makeFrontLabel(group.text);
     sprite.scale.set(height * 3.2, height, 1);
-    const topY = frontLabelsLifted.has(group.text)
-      ? box.max.y + (modelTopY - box.max.y) * 0.5
-      : box.max.y;
     sprite.position.set(center.x, topY + height * 0.7, center.z);
     scene.add(sprite);
     frontLabelEntries.push({ sprite, meshes });
@@ -497,7 +500,6 @@ loader.load('/api/model',
     const maxDim = Math.max(size.x, size.y, size.z);
     sceneMaxDim = maxDim;
     modelCenter.copy(center);
-    modelTopY = box.max.y;
     camera.near = Math.max(maxDim / 1000, 0.01);
     camera.far = maxDim * 20;
     camera.updateProjectionMatrix();
