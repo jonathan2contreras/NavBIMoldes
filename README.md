@@ -8,7 +8,7 @@ Stack de producción (`deploy/docker-compose.prod.yml`):
 - **backend**: FastAPI, accesible en `/api` del mismo dominio.
 - **MongoDB**: con usuario y contraseña, solo accesible dentro de la red interna de Docker.
 
-> ⚠️ La app no tiene login: cualquiera que abra la URL puede ver y editar los datos.
+> Cualquiera con la URL puede **ver** los datos; para **editar** hay que pulsar «Iniciar sesión» e introducir `ADMIN_PASSWORD`.
 
 ### 1. Preparar el servidor
 - VPS Linux con al menos 2 GB de RAM (el backend carga en memoria el modelo 3D de ~58 MB).
@@ -29,6 +29,8 @@ nano deploy/.env   # deploy/.env está en .gitignore
 | `ACME_EMAIL` | Email para avisos de Let's Encrypt |
 | `MONGO_USER` / `MONGO_PASSWORD` | Credenciales internas de Mongo (`openssl rand -hex 24`) |
 | `DB_NAME` | Nombre de la base de datos (por defecto `bimtracker`) |
+| `ADMIN_PASSWORD` | Contraseña compartida para entrar en modo edición |
+| `JWT_SECRET` | Clave para firmar las sesiones (`openssl rand -hex 32`) |
 | `EMERGENT_LLM_KEY` | Opcional: habilita la subida de fotos/PDF |
 
 ### 3. Arrancar

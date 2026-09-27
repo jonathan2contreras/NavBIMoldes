@@ -25,6 +25,8 @@ services:
       - MONGO_URL=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       - DB_NAME=${DB_NAME:-bimtracker}
       - EMERGENT_LLM_KEY=${EMERGENT_LLM_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in deploy/.env}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?set ADMIN_PASSWORD in deploy/.env}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/', timeout=5)"]
       interval: 30s
