@@ -446,7 +446,9 @@ function rebuildFrontLabels() {
     const center = box.getCenter(new THREE.Vector3());
     const sprite = makeFrontLabel(group.text);
     sprite.scale.set(height * 3.2, height, 1);
-    const topY = frontLabelsLifted.has(group.text) ? modelTopY : box.max.y;
+    const topY = frontLabelsLifted.has(group.text)
+      ? box.max.y + (modelTopY - box.max.y) * 0.5
+      : box.max.y;
     sprite.position.set(center.x, topY + height * 0.7, center.z);
     scene.add(sprite);
     frontLabelEntries.push({ sprite, meshes });
