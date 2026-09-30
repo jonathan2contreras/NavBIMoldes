@@ -47,6 +47,16 @@ docker compose -f deploy/docker-compose.prod.yml up -d --build
 ```
 No uses `down -v`: borra el volumen de la base de datos. Si cambias `DOMAIN` hay que reconstruir (`--build`), porque la URL se incrusta en el frontend.
 
+### Despliegue automático (GitHub Actions)
+`.github/workflows/deploy.yml` actualiza el servidor en cada fusión a `main` (también se puede lanzar a mano desde la pestaña *Actions*): entra por SSH, hace `git reset --hard origin/main`, reconstruye con `up -d --build` y espera a que el backend esté *healthy*.
+
+Configuración (una sola vez):
+1. En el VPS, crea una clave para el despliegue: `ssh-keygen -t ed25519 -f ~/.ssh/deploy -N ""` y añade `~/.ssh/deploy.pub` a `~/.ssh/authorized_keys`. El usuario debe poder ejecutar `docker` (`sudo usermod -aG docker $USER`).
+2. El VPS debe poder hacer `git fetch` del repo (si es privado, añade una *deploy key* de solo lectura en GitHub → Settings → Deploy keys).
+3. En GitHub → Settings → Secrets and variables → Actions, crea: `VPS_HOST` (IP o dominio), `VPS_USER`, `VPS_SSH_KEY` (contenido de `~/.ssh/deploy`) y, opcionales, `VPS_PORT` (22) y `VPS_APP_DIR` (ruta del clon, por defecto `~/nabimoldes`).
+
+`deploy/.env` vive solo en el servidor y no se toca. No hagas cambios manuales en el clon del VPS: se sobrescriben en cada despliegue.
+
 ### Copias de seguridad
 ```bash
 source deploy/.env
