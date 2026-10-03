@@ -393,6 +393,8 @@ const frontLabelEntries = [];
 let frontLabelGroups = [];
 // Fronts whose own top is hidden behind other geometry: lift their label to the top of the model.
 const frontLabelsAlignedTo = { 'Frente 3': 'Frente 1' };
+// Ajuste vertical por frente, en alturas de etiqueta (negativo = más abajo).
+const frontLabelsOffsetY = { 'Frente 3': -1.5 };
 
 function makeFrontLabel(text) {
   const W = 512, H = 160;
@@ -436,7 +438,7 @@ function updateFrontLabelVisibility() {
 function rebuildFrontLabels() {
   clearFrontLabels();
   if (!loaded || !phaseVisible) return;
-  const height = sceneMaxDim * 0.032;
+  const height = sceneMaxDim * 0.042;
   const entries = [];
   for (const group of frontLabelGroups) {
     const meshes = (group.names || []).map((n) => meshesByName[n]).filter(Boolean);
@@ -445,14 +447,19 @@ function rebuildFrontLabels() {
     for (const mesh of meshes) box.expandByObject(mesh);
     entries.push({ group, meshes, box });
   }
+  // Centro del conjunto: cada etiqueta se lleva a la esquina de su frente más alejada de él.
+  const all = new THREE.Box3();
+  entries.forEach((e) => all.union(e.box));
+  const mid = all.getCenter(new THREE.Vector3());
   const anchorY = (name) => entries.find((e) => e.group.text === name)?.box.max.y;
   for (const { group, meshes, box } of entries) {
     const alignedTo = frontLabelsAlignedTo[group.text];
     const topY = (alignedTo && anchorY(alignedTo)) || box.max.y;
-    const center = box.getCenter(new THREE.Vector3());
+    const cx = Math.abs(box.min.x - mid.x) > Math.abs(box.max.x - mid.x) ? box.min.x : box.max.x;
+    const cz = Math.abs(box.min.z - mid.z) > Math.abs(box.max.z - mid.z) ? box.min.z : box.max.z;
     const sprite = makeFrontLabel(group.text);
     sprite.scale.set(height * 3.2, height, 1);
-    sprite.position.set(center.x, topY + height * 0.7, center.z);
+    sprite.position.set(cx, topY + height * (0.7 + (frontLabelsOffsetY[group.text] || 0)), cz);
     scene.add(sprite);
     frontLabelEntries.push({ sprite, meshes });
   }

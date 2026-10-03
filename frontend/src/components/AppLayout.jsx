@@ -19,7 +19,7 @@ const TABS = [
 export default function AppLayout() {
   const { isAdmin } = useRole();
   return (
-    <div className="flex h-dvh min-w-0 flex-col bg-white">
+    <div className="flex h-dvh min-w-0 flex-col bg-white pt-[env(safe-area-inset-top)]">
       <p className="shrink-0 px-2 pt-3 text-center text-sm font-black tracking-[0.2em] text-[#1C1C1E] sm:px-6" data-testid="app-title">NABIMOLDES</p>
       <nav aria-label="Navegación principal" className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-[#E5E5EA] bg-white px-2 py-2 sm:px-6" data-testid="main-nav">
         {TABS.filter((t) => isAdmin || !t.adminOnly).map((t) => (

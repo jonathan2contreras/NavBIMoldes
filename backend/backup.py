@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from bson import json_util
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -12,6 +13,8 @@ from fastapi.responses import Response
 
 FORMAT = "bimtracker-backup"
 MAX_SIZE = 250 * 1024 * 1024
+COUNTERS = "backup_counters"  # secuencia diaria del nombre; no entra en la copia
+LOCAL_TZ = ZoneInfo("America/Lima")
 COLLECTION_NAME = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
@@ -23,7 +26,7 @@ def create_backup_router(db, static_dir, get_object, put_object, on_restore):
     async def download_backup():
         collections = {}
         for name in await db.list_collection_names():
-            if name.startswith("system."):
+            if name.startswith("system.") or name == COUNTERS:
                 continue
             collections[name] = [doc async for doc in db[name].find({})]
         attachments = {}
@@ -48,7 +51,10 @@ def create_backup_router(db, static_dir, get_object, put_object, on_restore):
             "attachments": attachments,
         }
         content = json_util.dumps(payload, ensure_ascii=False).encode("utf-8")
-        filename = f"bimtracker_copia_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}.json"
+        today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+        counter = await db[COUNTERS].find_one_and_update(
+            {"_id": today}, {"$inc": {"seq": 1}}, upsert=True, return_document=True)
+        filename = f"NABIMOLDES_{today}_Copia_{counter['seq']}.json"
         return Response(content, media_type="application/json",
                         headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
@@ -98,7 +104,7 @@ def create_backup_router(db, static_dir, get_object, put_object, on_restore):
             raise HTTPException(502, "No se pudo restaurar un archivo adjunto; los datos actuales no se modificaron.")
 
         for name in await db.list_collection_names():
-            if not name.startswith("system."):
+            if not name.startswith("system.") and name != COUNTERS:
                 await db.drop_collection(name)
         for name, docs in collections.items():
             if docs:

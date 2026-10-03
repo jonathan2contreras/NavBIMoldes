@@ -94,15 +94,18 @@ def readiness_story(payload):
             "Aún no hay moldes programados. Genera o guarda el cronograma en la pestaña Fabricación.", styles["Normal"]))
         return story
     area = round(sum(row.area for row in payload.rows), 2)
+    extra = sum(row.copies - 1 for row in payload.rows)
+    duplicated = f" (+{extra} {'copia' if extra == 1 else 'copias'})" if extra else ""
     story.append(Paragraph(
         f"Generado el {CalendarDate.today():%d/%m/%Y} &nbsp;·&nbsp; "
         f"Periodo de fabricación: {fmt(payload.start_date)} – {fmt(payload.finish_date)} &nbsp;·&nbsp; "
-        f"{len(payload.rows)} moldes programados &nbsp;·&nbsp; {len(payload.pending)} sin fecha &nbsp;·&nbsp; "
+        f"{len(payload.rows)} moldes programados{duplicated} &nbsp;·&nbsp; {len(payload.pending)} sin fecha &nbsp;·&nbsp; "
         f"{area:g} m²", styles["Normal"]))
     story.append(Spacer(1, 8))
     rows, style = [], []
     for index, row in enumerate(payload.rows, 1):
-        rows.append([row.name, row.tipo or "—", fmt(row.first), fmt(row.last), row.days,
+        name = f"{row.name} ({row.copies} copias)" if row.copies > 1 else row.name
+        rows.append([name, row.tipo or "—", fmt(row.first), fmt(row.last), row.days,
                      f"{row.panels} / {row.total}", f"{row.area:g}"])
         style.append(("LINEBEFORE", (0, index), (0, index), 3, swatch(row.color)))
     table = pdf_table(READINESS_HEAD, rows, READINESS_WIDTHS)
