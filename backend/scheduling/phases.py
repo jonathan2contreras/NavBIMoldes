@@ -64,6 +64,11 @@ def create_phase_router(store, valid_names):
     async def get_phases():
         return await store.read()
 
+    @router.delete("")
+    async def reset_phases():
+        """Delete the whole installation plan (fronts and panel list) to start a new one."""
+        return await store.write({"fronts": [], "items": []})
+
     @router.patch("/week")
     async def move_week(payload: MoveWeekRequest):
         week = monday(payload.week).isoformat()
