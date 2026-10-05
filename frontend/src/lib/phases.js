@@ -1,6 +1,10 @@
 import { addDays, format, parseISO, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 
+// Same palette as the backend; the first color not yet used is suggested for a new front.
+export const FRONT_COLORS = ["#E4572E", "#17BEBB", "#FFC914", "#76B041", "#8E44AD", "#2E86DE", "#D35400", "#C2185B"];
+export const nextFrontColor = (plan) => FRONT_COLORS[plan.fronts.length % FRONT_COLORS.length];
+
 export const weekMonday = (iso) => format(startOfWeek(parseISO(iso), { weekStartsOn: 1 }), "yyyy-MM-dd");
 export const weekLabel = (monday) =>
   `${format(parseISO(monday), "d MMM", { locale: es })} – ${format(addDays(parseISO(monday), 5), "d MMM yyyy", { locale: es })}`;

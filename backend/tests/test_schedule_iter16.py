@@ -247,11 +247,11 @@ def test_patch_panel_valid_date_not_422_and_revision_increments(http, admin_toke
     assert payload["revision"] == current["revision"] + 1
 
 
-def test_patch_rejects_sunday_before_start_and_far_future(http, admin_token):
+def test_patch_rejects_before_start_and_far_future(http, admin_token):
+    # Sundays are no longer rejected: they are never auto-planned but can be filled by hand.
     current = _get_schedule(http)
     panel = next(p for p in current["panels"] if p.get("date"))
     bad_dates = [
-        "2026-11-01",  # Sunday
         "2026-10-31",  # Before start
         "2036-11-02",  # > 10-year horizon from start
     ]

@@ -5,6 +5,7 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../ui/dialog";
 import { GanttCell } from "./GanttTask";
 import { areaLabel, dateLabel, panelKey, shiftDay, sunday } from "./dates";
+import { isAreaGoal, num } from "./goal";
 
 export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, onSetCopies, rangeStart, setRangeStart }) => {
   const [length, setLength] = useState(14);
@@ -45,7 +46,7 @@ export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, o
       <div className="gantt-scroll" data-testid="gantt-scroll" tabIndex={0} aria-label="Calendario de fabricación por molde">
         <div className="gantt-grid" style={{ gridTemplateColumns: `var(--gantt-label) repeat(${length}, minmax(68px, 1fr))`, minWidth: `calc(var(--gantt-label) + ${length * 68}px)` }}>
           <div className="gantt-label gantt-corner"><span className="font-bold">Molde</span><span className="mt-1 block text-[10px] text-[#636366]">Programados / total</span></div>
-          {days.map((day) => <button key={day} data-testid={`gantt-day-${day}`} onClick={() => onSelect(day)} className={`gantt-day ${sunday(day) ? "gantt-rest" : ""} ${selected === day ? "gantt-selected" : ""}`} aria-pressed={selected === day}><span className="block text-[10px] capitalize text-[#636366]">{dateLabel(day, "EEE")}</span><span className="block text-base font-bold">{dateLabel(day, "d")}</span><span className="block text-[9px] text-[#636366]">{dateLabel(day, "MMM")}</span></button>)}
+          {days.map((day) => <button key={day} data-testid={`gantt-day-${day}`} onClick={() => onSelect(day)} className={`gantt-day ${day < data.start_date ? "gantt-rest" : sunday(day) ? "gantt-sunday" : ""} ${selected === day ? "gantt-selected" : ""}`} aria-pressed={selected === day} title={sunday(day) ? "Domingo: solo se fabrica a mano" : undefined}><span className="block text-[10px] capitalize text-[#636366]">{dateLabel(day, "EEE")}</span><span className="block text-base font-bold">{dateLabel(day, "d")}</span><span className="block text-[9px] text-[#636366]">{dateLabel(day, "MMM")}</span></button>)}
           {moldsByName.flatMap((mold) => Array.from({ length: mold.copies || 1 }, (_, copy) => <React.Fragment key={`${mold.name}-${copy}`}>
             <div className="gantt-label" data-testid={`gantt-mold-${panelKey(mold.name)}${copy ? `-${copy + 1}` : ""}`}>
               <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/10" style={{ backgroundColor: mold.color }} /><span className="break-words text-xs font-bold">{mold.name}{copy ? ` · copia ${copy + 1}` : ""}</span></div>
@@ -58,9 +59,9 @@ export const GanttTimeline = ({ data, selected, onSelect, admin, busy, onMove, o
             {days.map((day) => <GanttCell key={day} mold={mold} day={day} copy={copy} panel={cells.get(`${mold.name}|${day}`)?.[copy]} selected={selected === day} admin={admin} busy={busy} start={data.start_date} onSelect={onSelect} />)}
           </React.Fragment>))}
           <div className="gantt-label border-t-2 text-xs font-bold">Paneles / día</div>
-          {days.map((day) => <button key={day} data-testid={`gantt-day-count-${day}`} className={`gantt-total ${sunday(day) ? "gantt-rest" : ""}`} onClick={() => onSelect(day)}>{counts[day] || 0}<span className="font-normal text-[#8E8E93]"> / {sunday(day) ? 0 : data.daily_capacity}</span></button>)}
+          {days.map((day) => <button key={day} data-testid={`gantt-day-count-${day}`} className={`gantt-total ${day < data.start_date ? "gantt-rest" : sunday(day) ? "gantt-sunday" : ""}`} onClick={() => onSelect(day)}>{counts[day] || 0}{!isAreaGoal(data) && !sunday(day) && <span className="font-normal text-[#8E8E93]"> / {data.daily_capacity}</span>}</button>)}
           <div className="gantt-label text-xs font-bold">m² / día</div>
-          {days.map((day) => <div key={day} data-testid={`gantt-day-area-${day}`} className={`gantt-total flex items-center justify-center text-[#007AFF] ${sunday(day) ? "gantt-rest" : ""}`}>{areas[day] ? areaLabel(areas[day]) : "—"}</div>)}
+          {days.map((day) => <div key={day} data-testid={`gantt-day-area-${day}`} className={`gantt-total flex items-center justify-center text-[#007AFF] ${day < data.start_date ? "gantt-rest" : sunday(day) ? "gantt-sunday" : ""}`}>{areas[day] ? areaLabel(areas[day]) : "—"}{isAreaGoal(data) && !sunday(day) && day >= data.start_date && <span className="ml-1 text-[9px] font-normal text-[#8E8E93]">/ {num(data.daily_area)}</span>}</div>)}
         </div>
       </div>
       <DragOverlay dropAnimation={null}>{drag && <div className="rounded border-2 bg-white px-3 py-2 text-xs font-bold shadow-lg" style={{ borderColor: drag.color }} data-testid="gantt-drag-preview">{drag.code}</div>}</DragOverlay>

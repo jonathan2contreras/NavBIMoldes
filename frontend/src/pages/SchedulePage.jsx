@@ -11,6 +11,7 @@ import { DayDetails } from "../components/schedule/DayDetails";
 import { ScheduleBoard } from "../components/schedule/ScheduleBoard";
 import { ScheduleProduction } from "../components/schedule/ScheduleProduction";
 import { ScheduleExport } from "../components/schedule/ScheduleExport";
+import { goalText } from "../components/schedule/goal";
 import "../components/schedule/schedule.css";
 
 export default function SchedulePage() {
@@ -28,8 +29,8 @@ export default function SchedulePage() {
   const goToDay = (day) => { setSelected(day); setRangeStart(day); };
   const move = (object_name, date) => mutate(() => api.moveSchedulePanel({ object_name, date, revision: data.revision }), date ? "Fecha de fabricación guardada." : "Panel devuelto a pendientes.");
   const setMoldCopies = (mold, copies) => mutate(() => api.setScheduleMoldCopies({ mold, copies, revision: data.revision }), `${mold}: ${copies} ${copies === 1 ? "copia" : "copias"}. Cronograma recalculado.`);
-  const generate = async (start_date, daily_capacity, revision) => {
-    const result = await mutate(() => api.generateSchedule({ start_date, daily_capacity, revision }), `Objetivo de ${daily_capacity} paneles/día aplicado y guardado.`);
+  const generate = async (config) => {
+    const result = await mutate(() => api.generateSchedule(config), `Objetivo de ${goalText(config)} aplicado y guardado.`);
     if (result) { setRangeStart(result.start_date); setSelected(result.first_date || result.start_date); }
     return result;
   };

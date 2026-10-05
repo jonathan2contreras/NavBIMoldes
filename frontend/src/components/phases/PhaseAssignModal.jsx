@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import { CalendarRange, Loader2, Plus, X } from "lucide-react";
 
 import { api } from "../../lib/api";
-import { weekLabel, weekMonday } from "../../lib/phases";
+import { FRONT_COLORS, nextFrontColor, weekLabel, weekMonday } from "../../lib/phases";
 
 export const PhaseAssignModal = ({ objectNames, plan, onClose, onChanged, onAssigned }) => {
   const [frontId, setFrontId] = useState(plan.fronts[plan.fronts.length - 1]?.id || "");
   const [newFront, setNewFront] = useState("");
+  const [newColor, setNewColor] = useState(() => nextFrontColor(plan));
   const [day, setDay] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -31,11 +32,12 @@ export const PhaseAssignModal = ({ objectNames, plan, onClose, onChanged, onAssi
   };
 
   const createFront = async () => {
-    const result = await run(() => api.createFront(newFront.trim()));
+    const result = await run(() => api.createFront(newFront.trim(), newColor));
     if (result) {
       onChanged(result);
       setFrontId(result.fronts[result.fronts.length - 1].id);
       setNewFront("");
+      setNewColor(nextFrontColor(result));
     }
   };
 
@@ -81,6 +83,20 @@ export const PhaseAssignModal = ({ objectNames, plan, onClose, onChanged, onAssi
                 className="flex h-10 items-center gap-1 rounded-xl border border-[#C7C7CC] px-3 text-xs font-bold disabled:opacity-50">
                 <Plus size={14} /> Crear
               </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="phase-color-picker">
+              <span className="text-xs font-semibold text-[#636366]">Color</span>
+              {FRONT_COLORS.map((c) => (
+                <button key={c} type="button" onClick={() => setNewColor(c)} aria-label={`Color ${c}`} aria-pressed={newColor.toUpperCase() === c}
+                  data-testid={`phase-color-${c.slice(1)}`}
+                  className="h-7 w-7 rounded-full border-2 border-white shadow ring-offset-1 aria-pressed:ring-2 aria-pressed:ring-[#1C1C1E]"
+                  style={{ backgroundColor: c }} />
+              ))}
+              <label className="flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-[#C7C7CC] px-2 text-xs font-semibold text-[#3A3A3C]" title="Elegir otro color">
+                <input type="color" value={newColor} onChange={(e) => setNewColor(e.target.value.toUpperCase())} data-testid="phase-color-custom"
+                  className="h-5 w-5 cursor-pointer border-0 bg-transparent p-0" />
+                Otro
+              </label>
             </div>
           </div>
 

@@ -2,7 +2,7 @@
 import uuid
 from datetime import date as CalendarDate, timedelta
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 FRONT_COLORS = ["#E4572E", "#17BEBB", "#FFC914", "#76B041", "#8E44AD", "#2E86DE", "#D35400", "#C2185B"]
 
@@ -14,6 +14,21 @@ def monday(value: CalendarDate) -> CalendarDate:
 class FrontRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=60)
+    # Optional #RRGGBB chosen by the user; when omitted the next palette color is used.
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+class FrontUpdateRequest(BaseModel):
+    """Edit an existing front: rename it, recolor it, or both."""
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if self.name is None and self.color is None:
+            raise ValueError("Indica el nombre o el color a cambiar.")
+        return self
 
 
 class AssignRequest(BaseModel):
@@ -100,8 +115,26 @@ def create_phase_router(store, valid_names):
         name = payload.name.strip()
         if any(f["name"].lower() == name.lower() for f in plan["fronts"]):
             raise HTTPException(409, "Ya existe un frente con ese nombre.")
-        color = FRONT_COLORS[len(plan["fronts"]) % len(FRONT_COLORS)]
+        color = (payload.color or FRONT_COLORS[len(plan["fronts"]) % len(FRONT_COLORS)]).upper()
         plan["fronts"].append({"id": uuid.uuid4().hex[:8], "name": name, "color": color})
+        return await store.write(plan)
+
+    @router.patch("/fronts/{front_id}")
+    async def update_front(front_id: str, payload: FrontUpdateRequest):
+        """Rename and/or recolor an existing front; its panel assignments are untouched."""
+        plan = await store.read()
+        front = next((f for f in plan["fronts"] if f["id"] == front_id), None)
+        if not front:
+            raise HTTPException(404, "Frente no encontrado.")
+        if payload.name is not None:
+            name = payload.name.strip()
+            if not name:
+                raise HTTPException(422, "El nombre no puede estar vacío.")
+            if any(f["id"] != front_id and f["name"].lower() == name.lower() for f in plan["fronts"]):
+                raise HTTPException(409, "Ya existe un frente con ese nombre.")
+            front["name"] = name
+        if payload.color is not None:
+            front["color"] = payload.color.upper()
         return await store.write(plan)
 
     @router.delete("/fronts/{front_id}")

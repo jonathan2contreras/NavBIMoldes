@@ -58,7 +58,29 @@ def init_storage(force: bool = False):
     return storage_key
 
 
+# Si EMERGENT_LLM_KEY esta definida se usa el almacenamiento de Emergent; si no, el disco local
+# (UPLOAD_DIR, montado como volumen de Docker para que fotos y PDFs sobrevivan a los reinicios).
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/data/uploads"))
+
+
+def _use_emergent_storage() -> bool:
+    return bool((os.environ.get("EMERGENT_LLM_KEY") or "").strip())
+
+
+def _local_path(path: str) -> Path:
+    base = UPLOAD_DIR.resolve()
+    target = (base / path).resolve()
+    if base != target and base not in target.parents:
+        raise ValueError("Ruta de archivo no valida")
+    return target
+
+
 def put_object(path: str, data: bytes, content_type: str) -> dict:
+    if not _use_emergent_storage():
+        target = _local_path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        return {"path": path, "size": len(data)}
     key = init_storage()
     resp = requests.put(f"{STORAGE_URL}/objects/{path}",
                         headers={"X-Storage-Key": key, "Content-Type": content_type},
@@ -73,10 +95,13 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def storage_get_object(path: str):
+    if not _use_emergent_storage():
+        return _local_path(path).read_bytes(), "application/octet-stream"
     key = init_storage()
     resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
 
 # ---------- Object catalog (extracted from GLB) ----------
 
@@ -249,8 +274,9 @@ async def startup():
     await db.tags.update_many({}, {"$unset": {"ancho": "", "alto": "", "color": ""}})
     if await db.tipos.count_documents({}) == 0:
         await db.tipos.insert_many([{"name": n} for n in ["Curvo", "Liso", "Borde de losa", "Cubre viga"]])
-    if not os.environ.get("EMERGENT_LLM_KEY"):
-        logging.warning("Object storage not configured (EMERGENT_LLM_KEY missing); photo/PDF uploads are disabled")
+    if not _use_emergent_storage():
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Photos/PDFs stored on local disk: {UPLOAD_DIR}")
     else:
         try:
             init_storage()
@@ -532,6 +558,8 @@ async def upload_photo(file: UploadFile = File(...)):
     if len(data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=422, detail="La imagen supera el límite de 10 MB")
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    if not re.fullmatch(r"[a-z0-9]{1,5}", ext):
+        ext = "jpg"
     path = f"{APP_NAME}/uploads/{uuid.uuid4()}.{ext}"
     try:
         result = put_object(path, data, file.content_type)

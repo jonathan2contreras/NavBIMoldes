@@ -2,11 +2,12 @@
 import re
 from collections import defaultdict
 from copy import deepcopy
+from typing import Literal
 from datetime import date as CalendarDate, timedelta
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
@@ -19,7 +20,16 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 SCHEDULE_HEAD = ["Fecha", "Día", "Molde", "Panel", "Tipo", "Fachada", "Planta", "Frente", "Semana", "m²"]
+# "sheets": several sheets/pages (the original layout). "continuous": everything in one continuous sheet.
+Layout = Literal["sheets", "continuous"]
+MAX_PAGE = 14400  # PDF viewers cap a page at 200 in (14,400 pt) per side.
 PLAN_HEAD = ["Orden", "Frente", "Semana", "Panel", "Molde", "Tipo", "Fachada", "Fecha programada", "m²"]
+
+
+def goal_text(data):
+    if data.get("capacity_unit") == "m2" and data.get("daily_area"):
+        return f"{data['daily_area']:g} m²/día"
+    return f"{data.get('daily_capacity')} paneles/día"
 
 
 def fmt(value):
@@ -40,18 +50,38 @@ def build_tables(data):
                  for i, p in enumerate(plan)]
     area = round(sum(p.get("area") or 0 for p in scheduled), 2)
     summary = [["Inicio", fmt(data.get("start_date"))], ["Primera fecha", fmt(data.get("first_date"))],
-               ["Fecha final", fmt(data.get("finish_date"))], ["Objetivo diario", f"{data.get('daily_capacity')} paneles/día"],
+               ["Fecha final", fmt(data.get("finish_date"))], ["Objetivo diario", goal_text(data)],
                ["Paneles programados", data.get("scheduled", 0)], ["Paneles sin fecha", data.get("unscheduled", 0)],
                ["Paneles en plan de instalación", len(plan_rows)], ["m² programados", area]]
     return summary, schedule_rows, plan_rows
 
 
-def to_xlsx(summary, schedule_rows, plan_rows):
+def to_xlsx(summary, schedule_rows, plan_rows, layout="sheets"):
     wb = Workbook()
     bold, fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="1C1C1E")
-    sheets = [("Resumen", ["Dato", "Valor"], summary), ("Cronograma", SCHEDULE_HEAD, schedule_rows),
-              ("Plan de instalación", PLAN_HEAD, plan_rows)]
-    for index, (title, head, rows) in enumerate(sheets):
+    sections = [("Resumen", ["Dato", "Valor"], summary), ("Cronograma", SCHEDULE_HEAD, schedule_rows),
+                ("Plan de instalación", PLAN_HEAD, plan_rows)]
+    if layout == "continuous":
+        # One sheet: each section under the previous one, separated by a blank row.
+        ws = wb.active
+        ws.title = "Cronograma"
+        for index, (title, head, rows) in enumerate(sections):
+            if index:
+                ws.append([])
+            ws.append([title])
+            ws.cell(row=ws.max_row, column=1).font = Font(bold=True, size=13)
+            ws.append(head)
+            for cell in ws[ws.max_row]:
+                if cell.value is not None:
+                    cell.font, cell.fill = bold, fill
+            for row in rows:
+                ws.append(row)
+        for column in ws.columns:
+            ws.column_dimensions[column[0].column_letter].width = min(max(len(str(c.value or "")) for c in column) + 2, 40)
+        out = BytesIO()
+        wb.save(out)
+        return out.getvalue()
+    for index, (title, head, rows) in enumerate(sections):
         ws = wb.active if index == 0 else wb.create_sheet()
         ws.title = title
         ws.append(head)
@@ -81,18 +111,30 @@ def pdf_table(head, rows):
     return table
 
 
-def to_pdf(summary, schedule_rows, plan_rows):
+def to_pdf(summary, schedule_rows, plan_rows, layout="sheets"):
     out = BytesIO()
     styles = getSampleStyleSheet()
-    doc = SimpleDocTemplate(out, pagesize=landscape(A4), leftMargin=1.2 * cm, rightMargin=1.2 * cm,
-                            topMargin=1.2 * cm, bottomMargin=1.2 * cm, title="Cronograma y plan de instalación")
-    doc.build([
+    margin = 1.2 * cm
+    width = landscape(A4)[0]
+    sections = [
         Paragraph("Cronograma y plan de instalación", styles["Title"]),
         Paragraph(f"Generado el {CalendarDate.today().strftime('%d/%m/%Y')}", styles["Normal"]), Spacer(1, 10),
-        pdf_table(["Dato", "Valor"], summary), PageBreak(),
-        Paragraph("Cronograma", styles["Heading2"]), pdf_table(SCHEDULE_HEAD, schedule_rows), PageBreak(),
+        pdf_table(["Dato", "Valor"], summary), None,
+        Paragraph("Cronograma", styles["Heading2"]), pdf_table(SCHEDULE_HEAD, schedule_rows), None,
         Paragraph("Plan de instalación", styles["Heading2"]), pdf_table(PLAN_HEAD, plan_rows),
-    ])
+    ]
+    if layout == "continuous":
+        story = [part if part is not None else Spacer(1, 18) for part in sections]
+        available = width - 2 * margin - 12
+        content = sum(deepcopy(part).wrap(available, 100000)[1] + part.getSpaceBefore() + part.getSpaceAfter() for part in story)
+        height = min(MAX_PAGE, max(landscape(A4)[1], content + 2 * margin + 48))  # longer content flows to the next page
+        doc = SimpleDocTemplate(out, pagesize=(width, height), leftMargin=margin, rightMargin=margin,
+                                topMargin=margin, bottomMargin=margin, title="Cronograma y plan de instalación")
+        doc.build(story)
+        return out.getvalue()
+    doc = SimpleDocTemplate(out, pagesize=landscape(A4), leftMargin=margin, rightMargin=margin,
+                            topMargin=margin, bottomMargin=margin, title="Cronograma y plan de instalación")
+    doc.build([PageBreak() if part is None else part for part in sections])
     return out.getvalue()
 
 
@@ -105,8 +147,8 @@ def tint(hex_color, alpha=0.2):
     return colors.Color(1 - (1 - base.red) * alpha, 1 - (1 - base.green) * alpha, 1 - (1 - base.blue) * alpha)
 
 
-def to_gantt_pdf(data):
-    """Mold rows × day columns, one page per block of GANTT_DAYS days."""
+def to_gantt_pdf(data, layout="sheets"):
+    """Mold rows × day columns: one sheet per block of GANTT_DAYS days, or every day on one continuous sheet."""
     panels = [p for p in data["panels"] if p.get("date")]
     cells = defaultdict(list)
     for panel in panels:
@@ -127,12 +169,21 @@ def to_gantt_pdf(data):
     mold_style = styles["BodyText"].clone("gantt-mold", fontSize=8, leading=10)
     day_style = styles["BodyText"].clone("gantt-day", fontSize=8, leading=10, alignment=1)
     day_style.textColor = colors.HexColor("#1C1C1E")
+    label_width = 3.2 * cm
+    day_width = (landscape(A4)[0] - 2 * cm - 12 - label_width) / GANTT_DAYS  # same column width in both layouts
+    if layout == "continuous":
+        span = (finish - start).days + 1
+        per_block = max(1, min(span, int((MAX_PAGE - 2 * cm - 12 - label_width) // day_width)))
+    else:
+        per_block = GANTT_DAYS
     block = start
     while block <= finish:
-        days = [block + timedelta(days=i) for i in range(GANTT_DAYS)]
+        days = [block + timedelta(days=i) for i in range(per_block)]
+        if layout == "continuous":
+            days = [d for d in days if d <= finish]
         keys = [d.isoformat() for d in days]
-        block += timedelta(days=GANTT_DAYS)
-        if not any((m["name"], k) in cells for m in molds for k in keys):
+        block += timedelta(days=per_block)
+        if layout != "continuous" and not any((m["name"], k) in cells for m in molds for k in keys):
             continue  # skip two-week blocks without production
         head = [Paragraph("<b>Molde</b><br/><font size='7' color='#636366'>Programados / total</font>", mold_style)] + [
             Paragraph(f"<font size='7' color='#636366'>{DAYS[d.weekday()]}</font><br/>"
@@ -180,23 +231,24 @@ def to_gantt_pdf(data):
                 rows.append(row)
         counts = [sum(len(cells[(m["name"], k)]) for m in molds) for k in keys]
         areas = [round(sum(p.get("area") or 0 for m in molds for p in cells[(m["name"], k)]), 2) for k in keys]
-        rows.append(["Paneles / día"] + [f"{n} / {0 if days[i].weekday() == 6 else data['daily_capacity']}" for i, n in enumerate(counts)])
-        rows.append(["m² / día"] + [f"{a:g}".replace(".", ",") + " m²" if a else "—" for a in areas])
+        area_goal = data.get("capacity_unit") == "m2"
+        rows.append(["Paneles / día"] + [(f"{n} (manual)" if n else "0 / 0") if days[i].weekday() == 6 else (str(n) if area_goal else f"{n} / {data['daily_capacity']}") for i, n in enumerate(counts)])
+        rows.append(["m² / día"] + [(f"{a:g}".replace(".", ",") + (f" / {data['daily_area']:g}" if area_goal and days[i].weekday() != 6 else "") + " m²") if a else "—" for i, a in enumerate(areas)])
         style += [("BACKGROUND", (0, -2), (-1, -1), colors.HexColor("#F2F2F7")),
                   ("TEXTCOLOR", (1, -1), (-1, -1), colors.HexColor("#007AFF")),
                   ("FONTNAME", (0, -2), (-1, -1), "Helvetica-Bold"),
                   ("LINEABOVE", (0, -2), (-1, -2), 1, colors.HexColor("#C7C7CC"))]
-        width = (landscape(A4)[0] - 2 * cm - 12 - 3.2 * cm) / GANTT_DAYS
-        table = Table(rows, colWidths=[3.2 * cm] + [width] * GANTT_DAYS, repeatRows=1)
+        table = Table(rows, colWidths=[label_width] + [day_width] * len(days), repeatRows=1)
         table.setStyle(TableStyle(style))
         pages.append([Paragraph(f"{days[0].strftime('%d/%m/%Y')} – {days[-1].strftime('%d/%m/%Y')}", styles["Heading3"]), table])
-    # Fit each complete two-week block on its own sheet, even when molds have many copies.
+    # Fit each complete block on its own sheet, even when molds have many copies.
     pages[0].insert(0, title)
-    available_width = landscape(A4)[0] - 2 * cm - 12  # ReportLab frame padding.
+    page_width = max(landscape(A4)[0], 2 * cm + 12 + label_width + day_width * max(len(page[-1]._colWidths) - 1 for page in pages))
+    available_width = page_width - 2 * cm - 12  # ReportLab frame padding.
     content_height = max(sum(deepcopy(part).wrap(available_width, 100000)[1] + part.getSpaceBefore() + part.getSpaceAfter()
                              for part in page) for page in pages)
-    page_height = max(landscape(A4)[1], content_height + 2 * cm + 48)
-    doc = SimpleDocTemplate(out, pagesize=(landscape(A4)[0], page_height), leftMargin=cm, rightMargin=cm,
+    page_height = min(MAX_PAGE, max(landscape(A4)[1], content_height + 2 * cm + 48))
+    doc = SimpleDocTemplate(out, pagesize=(page_width, page_height), leftMargin=cm, rightMargin=cm,
                             topMargin=cm, bottomMargin=cm, title="Diagrama de Gantt")
     story = []
     for page in pages:
@@ -215,22 +267,22 @@ def create_export_router(service):
     router = APIRouter(prefix="/schedule", tags=["Cronograma"])
 
     @router.get("/export.{kind}")
-    async def export_schedule(kind: str):
+    async def export_schedule(kind: str, layout: Layout = Query("sheets")):
         if kind not in FORMATS:
             raise HTTPException(404, "Formato no soportado")
         data = await service.get()
         data = data.model_dump() if hasattr(data, "model_dump") else data
         build, media = FORMATS[kind]
-        name = f"cronograma_{CalendarDate.today().isoformat()}.{kind}"
-        return StreamingResponse(BytesIO(build(*build_tables(data))), media_type=media,
+        name = f"cronograma_{CalendarDate.today().isoformat()}{'_continuo' if layout == 'continuous' else ''}.{kind}"
+        return StreamingResponse(BytesIO(build(*build_tables(data), layout=layout)), media_type=media,
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @router.get("/export-gantt.pdf")
-    async def export_gantt():
+    async def export_gantt(layout: Layout = Query("sheets")):
         data = await service.get()
         data = data.model_dump() if hasattr(data, "model_dump") else data
-        name = f"gantt_{CalendarDate.today().isoformat()}.pdf"
-        return StreamingResponse(BytesIO(to_gantt_pdf(data)), media_type="application/pdf",
+        name = f"gantt_{CalendarDate.today().isoformat()}{'_continuo' if layout == 'continuous' else ''}.pdf"
+        return StreamingResponse(BytesIO(to_gantt_pdf(data, layout=layout)), media_type="application/pdf",
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     return router

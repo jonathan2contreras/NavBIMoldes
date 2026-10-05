@@ -1,15 +1,41 @@
 import React, { useState } from "react";
-import { ListOrdered, Trash2, X } from "lucide-react";
+import { ListOrdered, Pencil, Trash2, X } from "lucide-react";
 
 import { api } from "../../lib/api";
 import { displayName } from "../../lib/theme";
-import { groupPhases, weekLabel } from "../../lib/phases";
+import { FRONT_COLORS, groupPhases, weekLabel } from "../../lib/phases";
 
 export const PhaseListPanel = ({ plan, admin, onClose, onChanged, onFocus }) => {
   const [error, setError] = useState("");
+  const [editing, setEditing] = useState(null); // front id being edited
+  const [draftName, setDraftName] = useState("");
+  const [draftColor, setDraftColor] = useState("#2E86DE");
+  const [saving, setSaving] = useState(false);
   const run = async (request) => {
     setError("");
     try { onChanged(await request()); } catch (err) { setError(err.message); }
+  };
+  const openEditor = (front) => {
+    if (editing === front.id) { setEditing(null); return; }
+    setError("");
+    setDraftName(front.name);
+    setDraftColor(front.color.toUpperCase());
+    setEditing(front.id);
+  };
+  const save = async (front) => {
+    const name = draftName.trim();
+    if (!name) { setError("El nombre no puede estar vacío."); return; }
+    const body = {};
+    if (name !== front.name) body.name = name;
+    if (draftColor.toUpperCase() !== front.color.toUpperCase()) body.color = draftColor;
+    if (!Object.keys(body).length) { setEditing(null); return; }
+    setSaving(true); setError("");
+    try { onChanged(await api.updateFront(front.id, body)); setEditing(null); } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  const remove = (front) => {
+    if (!window.confirm(`¿Eliminar ${front.name} y sus asignaciones?`)) return;
+    setEditing(null);
+    run(() => api.deleteFront(front.id));
   };
   return (
     <aside className="absolute bottom-4 right-4 top-36 z-40 flex w-[340px] max-w-[calc(100%-2rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-xl" data-testid="phase-list-panel">
@@ -23,10 +49,38 @@ export const PhaseListPanel = ({ plan, admin, onClose, onChanged, onFocus }) => 
         {groupPhases(plan).map((front) => (
           <section key={front.id} className="mb-4" data-testid={`phase-list-front-${front.id}`}>
             <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: front.color }} />
-              <p className="flex-1 text-sm font-bold">{front.name}</p>
-              {admin && <button title="Eliminar frente y sus asignaciones" onClick={() => window.confirm(`¿Eliminar ${front.name} y sus asignaciones?`) && run(() => api.deleteFront(front.id))} data-testid={`phase-delete-front-${front.id}`}><Trash2 size={14} className="text-[#8E8E93]" /></button>}
+              {admin ? (
+                <button type="button" title="Editar frente" aria-label={`Editar ${front.name}`} data-testid={`phase-color-btn-${front.id}`}
+                  onClick={() => openEditor(front)}
+                  className="h-4 w-4 rounded-full border-2 border-white shadow ring-1 ring-[#C7C7CC] hover:ring-[#1C1C1E]" style={{ backgroundColor: front.color }} />
+              ) : (
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: front.color }} />
+              )}
+              <p className="flex-1 truncate text-sm font-bold">{front.name}</p>
+              {admin && <button title="Editar nombre y color" onClick={() => openEditor(front)} data-testid={`phase-edit-front-${front.id}`}><Pencil size={14} className="text-[#8E8E93]" /></button>}
+              {admin && <button title="Eliminar frente y sus asignaciones" onClick={() => remove(front)} data-testid={`phase-delete-front-${front.id}`}><Trash2 size={14} className="text-[#8E8E93]" /></button>}
             </div>
+            {admin && editing === front.id && (
+              <div className="mt-2 space-y-2 rounded-xl bg-[#F2F2F7] p-3" data-testid={`phase-color-editor-${front.id}`}
+                onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); }}>
+                <input value={draftName} onChange={(e) => setDraftName(e.target.value)} maxLength={60} autoFocus aria-label="Nombre del frente" placeholder="Nombre del frente"
+                  onKeyDown={(e) => e.key === "Enter" && save(front)} data-testid={`phase-edit-name-${front.id}`}
+                  className="h-9 w-full rounded-lg bg-white px-3 text-sm outline-none" />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {FRONT_COLORS.map((c) => (
+                    <button key={c} type="button" onClick={() => setDraftColor(c)} aria-label={`Color ${c}`} aria-pressed={draftColor === c}
+                      className="h-6 w-6 rounded-full border-2 border-white shadow aria-pressed:ring-2 aria-pressed:ring-[#1C1C1E]" style={{ backgroundColor: c }} />
+                  ))}
+                  <input type="color" value={draftColor} onChange={(e) => setDraftColor(e.target.value.toUpperCase())} aria-label="Otro color" data-testid={`phase-color-custom-${front.id}`}
+                    className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button type="button" onClick={() => setEditing(null)} data-testid={`phase-edit-cancel-${front.id}`} className="h-8 rounded-full px-3 text-xs font-semibold text-[#636366]">Cancelar</button>
+                  <button type="button" onClick={() => save(front)} disabled={saving || !draftName.trim()} data-testid={`phase-edit-save-${front.id}`}
+                    className="h-8 rounded-full bg-[#1C1C1E] px-3 text-xs font-bold text-white disabled:opacity-50">{saving ? "Guardando…" : "Guardar"}</button>
+                </div>
+              </div>
+            )}
             {!front.weeks.length && <p className="mt-1 text-xs text-[#8E8E93]">Sin paneles</p>}
             {front.weeks.map(({ week, items }) => (
               <div key={week} className="mt-2 border-l-2 pl-3" style={{ borderColor: front.color }}>
