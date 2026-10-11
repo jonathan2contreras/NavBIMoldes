@@ -2,6 +2,7 @@
 from collections import Counter, defaultdict, deque
 from datetime import date, timedelta
 from fastapi import HTTPException
+from .goal import as_goal, panel_area
 from .order import ordered_panels
 from .resources import validate_day, validate_resources
 
@@ -24,12 +25,17 @@ def plan_order(panels):
 
 
 def plan(panels, start, capacity, fixed=None, mold_copies=None):
+    """Auto-plan Monday to Saturday up to the daily goal (panels or m²). Sundays are left for manual entries."""
+    goal = as_goal(capacity)
     mold_copies = mold_copies or {}
     entries = list(fixed or [])
-    validate_resources(panels, entries, start, capacity, mold_copies)
+    validate_resources(panels, entries, start, goal, mold_copies)
     assigned = {entry["object_name"] for entry in entries}
     occupied = Counter((entry["date"], entry["molde"]) for entry in entries)
     counts = Counter(entry["date"] for entry in entries)
+    areas = Counter()
+    for entry in entries:
+        areas[entry["date"]] += panel_area(panels, entry["object_name"])
     queues = defaultdict(deque)
     rank = {}
     for panel in plan_order(panels):
@@ -43,8 +49,7 @@ def plan(panels, start, capacity, fixed=None, mold_copies=None):
             raise HTTPException(422, "La producción supera el horizonte de 10 años.")
         if day.weekday() != 6:
             key = day.isoformat()
-            free_slots = max(0, capacity - counts[key])
-            while free_slots:
+            while not goal.full(counts[key], areas[key]):
                 available = [queue[0] for mold, queue in queues.items()
                              if occupied[key, mold] < mold_copies.get(mold, 1)]
                 if not available:
@@ -54,16 +59,18 @@ def plan(panels, start, capacity, fixed=None, mold_copies=None):
                 entries.append({"object_name": panel["object_name"], "molde": mold, "date": key})
                 occupied[key, mold] += 1
                 counts[key] += 1
-                free_slots -= 1
+                areas[key] += panel_area(panels, panel["object_name"])
                 queues[mold].popleft()
                 if not queues[mold]:
                     del queues[mold]
         day += timedelta(days=1)
-    validate_resources(panels, entries, start, capacity, mold_copies)
+    validate_resources(panels, entries, start, goal, mold_copies)
     return entries
 
 
-def move(entries, panel, target, start, capacity, mold_copies=None):
+def move(entries, panel, target, start, capacity, mold_copies=None, panels=None):
+    """Move one panel to a day (Sundays included) while that day is still below the goal."""
+    goal = as_goal(capacity)
     rest = [entry for entry in entries if entry["object_name"] != panel["object_name"]]
     if target is None:
         return rest
@@ -72,6 +79,9 @@ def move(entries, panel, target, start, capacity, mold_copies=None):
     same_day = [entry for entry in rest if entry["date"] == key]
     if sum(entry["molde"] == panel["molde"] for entry in same_day) >= (mold_copies or {}).get(panel["molde"], 1):
         raise HTTPException(409, f"El molde {panel['molde']} ya alcanzó su capacidad ese día.")
-    if len(same_day) >= capacity:
-        raise HTTPException(409, f"Ese día ya tiene {capacity} paneles. Se ha alcanzado la capacidad diaria.")
+    day_area = sum(panel_area(panels or {}, entry["object_name"]) for entry in same_day)
+    if goal.full(len(same_day), day_area):
+        if goal.is_area:
+            raise HTTPException(409, f"Ese día ya alcanzó el objetivo de {goal.area:g} m² ({day_area:.2f} m² programados).")
+        raise HTTPException(409, f"Ese día ya tiene {goal.panels} paneles. Se ha alcanzado la capacidad diaria.")
     return rest + [{"object_name": panel["object_name"], "molde": panel["molde"], "date": key}]

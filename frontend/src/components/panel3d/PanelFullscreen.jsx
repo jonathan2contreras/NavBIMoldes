@@ -48,7 +48,7 @@ export const PanelFullscreen = ({ obj, mesh, onClose }) => {
     <div className="fixed inset-0 z-[60] bg-[#EDEEF2] animate-in fade-in duration-200" data-testid="panel-fullscreen">
       <canvas ref={canvasRef} className="block h-full w-full touch-none" data-testid="panel-fullscreen-canvas" />
 
-      <div className="pointer-events-none absolute left-6 top-5 right-20" data-testid="panel-fullscreen-info">
+      <div className="pointer-events-none absolute" style={{ left: "calc(env(safe-area-inset-left, 0px) + 1.5rem)", top: "calc(env(safe-area-inset-top, 0px) + 1.25rem)", right: "calc(env(safe-area-inset-right, 0px) + 5rem)" }} data-testid="panel-fullscreen-info">
         <div className="flex items-center gap-2.5">
           <span
             className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -76,7 +76,7 @@ export const PanelFullscreen = ({ obj, mesh, onClose }) => {
       </div>
 
       {/* Measure toolbar */}
-      <div className="absolute left-6 bottom-6 right-6 flex flex-col items-start gap-3" data-testid="panel-measure-toolbar">
+      <div className="absolute flex flex-col items-start gap-3" style={{ left: "calc(env(safe-area-inset-left, 0px) + 1.5rem)", bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)", right: "calc(env(safe-area-inset-right, 0px) + 1.5rem)" }} data-testid="panel-measure-toolbar">
         {measuring && (
           <div
             className="pointer-events-none rounded-xl bg-[#1C1C1E]/90 px-4 py-2.5 text-white shadow-lg backdrop-blur-sm"
@@ -123,7 +123,8 @@ export const PanelFullscreen = ({ obj, mesh, onClose }) => {
       <button
         onClick={onClose}
         data-testid="panel-fullscreen-close"
-        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-[#1C1C1E] text-white shadow-lg transition-opacity hover:opacity-85"
+        className="absolute flex h-11 w-11 items-center justify-center rounded-full bg-[#1C1C1E] text-white shadow-lg transition-opacity hover:opacity-85"
+        style={{ right: "calc(env(safe-area-inset-right, 0px) + 1rem)", top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
       >
         <X size={20} />
       </button>

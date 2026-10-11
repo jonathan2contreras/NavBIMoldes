@@ -1,6 +1,6 @@
 from datetime import date as CalendarDate
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class RevisionRequest(BaseModel):
@@ -10,7 +10,20 @@ class RevisionRequest(BaseModel):
 
 class GenerateRequest(RevisionRequest):
     start_date: CalendarDate
-    daily_capacity: int = Field(strict=True, ge=1, le=1000)
+    # Daily goal: a number of panels (capacity_unit="panels") or square meters (capacity_unit="m2").
+    capacity_unit: Literal["panels", "m2"] = "panels"
+    daily_capacity: Optional[int] = Field(default=None, strict=True, ge=1, le=1000)
+    daily_area: Optional[float] = Field(default=None, ge=0.01, le=100000)
+
+    @model_validator(mode="after")
+    def goal_is_present(self):
+        if self.capacity_unit == "panels" and self.daily_capacity is None:
+            raise ValueError("Indica los paneles por día.")
+        if self.capacity_unit == "m2" and self.daily_area is None:
+            raise ValueError("Indica los m² por día.")
+        if self.daily_area is not None:
+            self.daily_area = round(self.daily_area, 2)
+        return self
 
     @field_validator("start_date")
     @classmethod
@@ -84,6 +97,9 @@ class ProductionDay(BaseModel):
     date: str
     scheduled: int
     target: int
+    scheduled_area: float = 0.0
+    target_area: Optional[float] = None
+    shortfall_area: float = 0.0
     available_molds: int
     remaining_panels: int
     shortfall: int
@@ -94,6 +110,8 @@ class ProductionDay(BaseModel):
 class ScheduleResponse(BaseModel):
     start_date: str
     daily_capacity: int
+    capacity_unit: str = "panels"
+    daily_area: Optional[float] = None
     revision: int
     saved: bool
     updated_at: Optional[str] = None

@@ -3,6 +3,7 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDro
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "../ui/button";
 import { areaLabel, dateLabel, dayArea, panelKey, shiftDay, sunday } from "./dates";
+import { dayProgress } from "./goal";
 
 const BoardCard = ({ panel, disabled, onSelect }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: panel.object_name, data: { panel }, disabled });
@@ -16,14 +17,18 @@ const BoardCard = ({ panel, disabled, onSelect }) => {
 };
 
 const BoardColumn = ({ day, panels, data, selected, admin, busy, onSelect }) => {
-  const rest = sunday(day) || day < data.start_date;
-  const { setNodeRef, isOver } = useDroppable({ id: day, data: { day }, disabled: !admin || busy || rest });
-  return <div ref={setNodeRef} className={`board-column ${rest ? "gantt-rest" : ""} ${selected ? "board-selected" : ""} ${isOver ? "gantt-over" : ""}`} data-testid={`board-column-${day}`}>
+  const before = day < data.start_date;
+  const manual = sunday(day);
+  const { setNodeRef, isOver } = useDroppable({ id: day, data: { day }, disabled: !admin || busy || before });
+  return <div ref={setNodeRef} className={`board-column ${before ? "gantt-rest" : manual ? "gantt-sunday" : ""} ${selected ? "board-selected" : ""} ${isOver ? "gantt-over" : ""}`} data-testid={`board-column-${day}`}>
     <button className="w-full border-b border-[#E5E5EA] px-2 py-2 text-left" onClick={() => onSelect(day)}>
       <span className="block text-xs font-bold capitalize">{dateLabel(day, "EEE d MMM")}</span>
-      <span className="block text-[10px] text-[#636366]">{panels.length} / {rest ? 0 : data.daily_capacity} paneles</span>
+      <span className="block text-[10px] text-[#636366]" data-testid={`board-progress-${day}`}>{dayProgress(data, day, panels.length, dayArea(panels))}</span>
     </button>
-    <div className="flex-1 space-y-1.5 p-1.5">{panels.map((p) => <BoardCard key={p.object_name} panel={p} disabled={!admin || busy} onSelect={onSelect} />)}</div>
+    <div className="flex-1 space-y-1.5 p-1.5">
+      {panels.map((p) => <BoardCard key={p.object_name} panel={p} disabled={!admin || busy} onSelect={onSelect} />)}
+      {manual && !panels.length && admin && !before && <p className="px-1 pt-2 text-center text-[10px] text-[#8E8E93]" data-testid={`board-sunday-hint-${day}`}>Suelta aquí un panel para fabricarlo el domingo</p>}
+    </div>
     <div className="border-t border-[#C7C7CC] bg-[#F2F2F7] px-2 py-2 text-xs font-bold" data-testid={`board-area-${day}`}>Total <span className="float-right text-[#007AFF]">{areaLabel(dayArea(panels))}</span></div>
   </div>;
 };
@@ -31,7 +36,7 @@ const BoardColumn = ({ day, panels, data, selected, admin, busy, onSelect }) => 
 export const ScheduleBoard = ({ data, selected, onSelect, admin, busy, onMove, rangeStart, setRangeStart }) => {
   const [drag, setDrag] = useState(null);
   const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }));
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => shiftDay(rangeStart, i)).filter((d) => !sunday(d)), [rangeStart]);
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => shiftDay(rangeStart, i)), [rangeStart]);
   const byDay = useMemo(() => {
     const map = {};
     data.panels.forEach((p) => { if (p.date) (map[p.date] = map[p.date] || []).push(p); });

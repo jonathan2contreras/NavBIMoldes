@@ -35,7 +35,7 @@ export default function ViewerPage({ installationSelection, installationPlan, co
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [highlightStatus, setHighlightStatus] = useState(null);
   const highlightedPhase = installationSelection === undefined ? selectedPhase : installationSelection;
-  const [tagsVisible, setTagsVisible] = useState(true);
+  const [tagsVisible, setTagsVisible] = useState(!compact);
   const [phaseOpen, setPhaseOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const loadedRef = useRef(false);
@@ -172,6 +172,8 @@ export default function ViewerPage({ installationSelection, installationPlan, co
         setLoading(false);
         loadedRef.current = true;
         sendCmd("setPhaseVisible", [!!compact]);
+        // The installation menu (compact) shows only the installation layer, not the mold colors.
+        sendCmd("setTagsVisible", [!compact]);
         loadTags();
         if (pendingFocusRef.current) {
           const f = pendingFocusRef.current;
